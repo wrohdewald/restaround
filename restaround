@@ -1,0 +1,426 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+"""
+
+
+# Copyright (c) 2019 Wolfgang Rohdewald <wolfgang@rohdewald.de>
+# See LICENSE for details.
+
+
+"""
+
+# pylint: disable=missing-docstring, multiple-statements, invalid-name
+
+import os
+import argparse
+from subprocess import call
+
+
+class Flag:
+    """
+    There is a Flag class for every restic argument.
+    """
+    def __init__(self):
+        self.values = None
+        self.entry = None
+
+    @property
+    def restic_name(self):
+        return self.__class__.__name__.lower().replace('_', '-')
+
+    def set_values(self, entry):
+        self.entry = entry
+        if len(entry.values) > 1 and not isinstance(self, ListFlag):
+            raise Exception('{} must define only one value, it has {}'.format(
+                entry.filepath, entry.values))
+        self.values = entry.values
+
+    def args(self):
+        """Return a list of argument parts."""
+        return ['--{}={}'.format(self.restic_name, x) for x in self.values]
+
+    def __str__(self):
+        return ' '.join(self.args()) if self.values else '{}'.format(self.restic_name)
+
+    def __repr__(self):
+        return str(self)
+
+
+class BinaryFlag(Flag):
+
+    def args(self):
+        return ['--' + self.restic_name]
+
+
+class FileFlag(Flag):
+    """These flags always give file names."""
+
+    def set_values(self, entry):
+        self.values = [entry.filepath, ]
+
+    def args(self):
+        return ['--{}={}'.format(self.restic_name, self.values[0])]
+
+
+class ListFlag(Flag):
+    """The flag is repeated for every line in the config file."""
+
+
+class Direct(ListFlag):
+
+    def args(self):
+        return self.values or []
+
+
+class Add(Flag): pass
+class Exclude_If_Present(ListFlag): pass
+class Exclude(ListFlag): pass
+class Files_From(ListFlag): pass
+class Group_By(Flag): pass
+class Host(Flag): pass
+class IExclude(Flag): pass
+class IInclude(Flag): pass
+class Include(ListFlag): pass
+class Key_Hint(Flag): pass
+class Keep_Daily(Flag): pass
+class Keep_Hourly(Flag): pass
+class Keep_Last(Flag): pass
+class Keep_Monthly(Flag): pass
+class Keep_Tag(ListFlag): pass
+class Keep_Weekly(Flag): pass
+class Keep_Within(Flag): pass
+class Keep_Yearly(Flag): pass
+class Limit_Download(Flag): pass
+class Limit_Upload(Flag): pass
+class Max_Age(Flag): pass
+class Mode(Flag): pass
+class Newest(Flag): pass
+class Oldest(Flag): pass
+class Parent(Flag): pass
+class Password_Command(Flag): pass
+class Path(Flag): pass
+class Read_Data_Subset(Flag): pass
+class Remove(Flag): pass
+class Remove_All(Flag): pass
+class Repo(Flag): pass
+class Set(Flag): pass
+class Snapshot(Flag): pass
+class Snapshot_Template(Flag): pass
+class Stdin_Filename(Flag): pass
+class Tag(ListFlag): pass
+class Target(Flag): pass
+class Time(Flag): pass
+class Tls_Client_Cert(Flag): pass
+class Verbose(Flag): pass
+
+class Allow_Other(BinaryFlag): pass
+class Allow_Root(BinaryFlag): pass
+class Blob(BinaryFlag): pass
+class Check_Unused(BinaryFlag): pass
+class Cleanup(BinaryFlag): pass
+class Cleanup_Cache(BinaryFlag): pass
+class Compact(BinaryFlag): pass
+class Dry_Run(BinaryFlag): pass
+class Exclude_Caches(BinaryFlag): pass
+class Force(BinaryFlag): pass
+class Ignore_Case(BinaryFlag): pass
+class Ignore_Inode(BinaryFlag): pass
+class Json(BinaryFlag): pass
+class Last(BinaryFlag): pass
+class Long(BinaryFlag): pass
+class Metadata(BinaryFlag): pass
+class No_Cache(BinaryFlag): pass
+class No_Default_Permissions(BinaryFlag): pass
+class No_Lock(BinaryFlag): pass
+class No_Size(BinaryFlag): pass
+class One_File_System(BinaryFlag): pass
+class Owner_Root(BinaryFlag): pass
+class Pack(BinaryFlag): pass
+class Prune(BinaryFlag): pass
+class Quiet(BinaryFlag): pass
+class Recursive(BinaryFlag): pass
+class Read_Data(BinaryFlag): pass
+class Show_Pack_Id(BinaryFlag): pass
+class Stdin(BinaryFlag): pass
+class Tree(BinaryFlag): pass
+class Verify(BinaryFlag): pass
+class With_Atime(BinaryFlag): pass
+class With_Cache(BinaryFlag): pass
+
+class Cacert(FileFlag): pass
+class Cache_Dir(FileFlag): pass
+class Exclude_File(FileFlag): pass
+class Password_File(FileFlag): pass
+
+class Entry:
+
+    """Extract info from a file in the profile directory."""
+
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self.command = None
+        self.invert = False
+        fparts = os.path.basename(filepath).split('_')
+        for cmd in Main.commands.values():
+            if len(fparts) > 1 and cmd.restic_name == fparts[0] and fparts[1] in Main.flags:
+                self.command = cmd.restic_name
+                fparts = fparts[1:]  # command split off
+                break
+        if fparts[0] == 'no':
+            self.invert = True
+            fparts = fparts[1:]
+        self.flag_name = fparts[0]
+        self.values = fparts[1:]
+        if self.values:
+            if os.stat(self.filepath).st_size:
+                raise Exception("{}: file must be empty".format(self.filepath))
+        else:
+            self.values = self.file_lines()
+
+    def file_lines(self):
+        """Return a list of all stripped lines, empty lines exclude.
+        Lines starting with # are also excluded."""
+        result = [x.strip() for x in open(self.filepath, encoding='utf-8').readlines()]
+        return [x for x in result if x and not x.startswith('#')]
+
+    @property
+    def flag_key(self):
+        """key into Profile.flags"""
+        return (self.command, self.flag_name)
+
+
+class Profile:
+
+    """
+    This holds everything defined in a profile.
+    """
+
+    def __init__(self, name, command):
+        super().__init__()
+        self.name = name
+        self.command = command
+        self.flags = dict()   # key: restic_name
+        self.load()
+
+    def restic_parameters(self, command):
+        """Return an arg list for all flags applicable to command."""
+        result = []
+        # 'direct' must come last
+        for (flag_cmd, key), value in sorted(
+                self.flags.items(), key=lambda x: x[1].__class__ is Direct):
+            if flag_cmd is None or flag_cmd == command:
+                if (value.__class__ in Command.accepts_flags
+                        or value.__class__ in Main.commands[command].accepts_flags):
+                    restic_parm = self.restic_parameter(command, key)
+                    if restic_parm is not None:
+                        result.extend(restic_parm)
+        return result
+
+    def restic_parameter(self, command, key):
+        """
+        returns None or the rest-arg with its value
+        only if the arg is applicable to command
+        """
+
+        if key not in Main.flags:
+            raise Exception('{} not implemented'.format(key))
+        try:
+            flag = self.flags[command, key]
+        except KeyError:
+            flag = self.flags[None, key]
+        if flag.values is not None:
+            return flag.args()
+        return None
+
+    def load(self):
+        profile_found = False
+        for profile_name in ('default', self.name):
+            for basedir in (os.path.expanduser('~/.config'), '/etc'):
+                dirname = os.path.join(basedir, 'restaround', profile_name)
+                if os.path.isdir(dirname):
+                    if profile_name == self.name:
+                        profile_found = True
+                    self.load_from_directory(dirname)
+                    break
+        if not profile_found:
+            raise Exception('Profile {} not found'.format(self.name))
+
+    def load_from_directory(self, dirname):
+        for filename in os.listdir(dirname):
+            self.load_entry(os.path.join(dirname, filename))
+
+    def load_entry(self, filepath):
+        entry = Entry(filepath)
+        if entry.invert:
+            if entry.flag_key in self.flags:
+                del self.flags[entry.flag_key]
+            return
+        flag = self.flags.get(entry.flag_key, Main.flags[entry.flag_name].__class__())
+
+        flag.set_values(entry)
+        self.flags[entry.flag_key] = flag
+
+
+class Command:
+
+    accepts_flags = (
+        Cacert, Cache_Dir, Cleanup_Cache,
+        Json, Key_Hint, Limit_Download, Limit_Upload,
+        No_Cache, No_Lock, Password_Command, Password_File,
+        Quiet, Repo, Tls_Client_Cert, Verbose, Direct)
+
+    def run(self, profile, cmdline_args, dry_run):
+        args = ['restic', self.restic_name]
+        args.extend(profile.restic_parameters(self.restic_name))
+        if cmdline_args:
+            args.extend(cmdline_args)
+        print('RUN', ' '.join(args))
+        if not dry_run:
+            call(args)
+
+    @property
+    def restic_name(self):
+        return self.__class__.__name__.lower().replace('_', '-')[3:]
+
+    def __str__(self):
+        return 'Command({})'.format(self.restic_name)
+
+class CmdBackup(Command):
+    accepts_flags = (
+        Exclude, Exclude_File,
+        Exclude_If_Present, Files_From,
+        Force, Host, IExclude, Ignore_Inode,
+        One_File_System, Parent, Stdin,
+        Stdin_Filename, Tag, Time, With_Atime)
+
+
+class CmdCache(Command):
+    accepts_flags = (Cleanup, Max_Age, No_Size)
+
+
+class CmdCat(Command): pass
+
+
+class CmdCheck(Command):
+    accepts_flags = (Check_Unused, Read_Data, Read_Data_Subset, With_Cache)
+
+
+class CmdDiff(Command):
+    accepts_flags = (Metadata, )
+
+
+class CmdDump(Command): pass
+
+
+class CmdFind(Command):
+    accepts_flags = (
+        Blob, Ignore_Case, Long, Newest, Oldest,
+        Pack, Path, Show_Pack_Id, Snapshot, Tag, Tree)
+
+
+class CmdForget(Command):
+    accepts_flags = (
+        Keep_Last, Keep_Hourly, Keep_Daily,
+        Keep_Weekly, Keep_Monthly, Keep_Yearly,
+        Compact, Group_By, Dry_Run, Prune)
+
+
+class CmdInit(Command): pass
+
+
+class CmdList(Command): pass
+
+
+class CmdLs(Command):
+    accepts_flags = (Host, Long, Path, Recursive, Tag)
+
+
+class CmdMount(Command):
+    accepts_flags = (
+        Allow_Other, Allow_Root, Host,
+        No_Default_Permissions,
+        Owner_Root, Path, Snapshot_Template,
+        Tag)
+
+class CmdPrune(Command): pass
+
+class CmdRebuild_Index(Command): pass
+
+
+class CmdRecover(Command): pass
+
+
+class CmdRestore(Command):
+    accepts_flags = (
+        Exclude, Host, IExclude, IInclude,
+        Include, Path, Tag, Target, Verify)
+
+
+class CmdSnapshots(Command):
+    accepts_flags = (Compact, Group_By, Host, Last, Path, Tag)
+
+
+class CmdStats(Command): pass
+
+
+class CmdTag(Command):
+    accepts_flags = (Add, Host, Path, Remove, Set, Tag)
+
+
+class CmdUnlock(Command):
+    accepts_flags = (Remove_All, )
+
+
+class Main:
+
+    profile = dict()
+    commands = dict()
+    flags = dict()
+
+    def __init__(self):
+        self.parse()
+        Main.commands = {x.restic_name: x for x in self.find_classes(Command)}
+        Main.flags = {x.restic_name: x for x in self.find_classes(Flag)
+                      if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
+        options, restic_args = self.parse()
+        profile = Profile(options.profile, options.command)
+        Main.commands[options.command].__class__().run(profile, restic_args, options.dry_run)
+
+    @staticmethod
+    def parse():
+        parser = argparse.ArgumentParser(description="""
+          Makes using restic simpler with the help of profiles. Profile 'default' is
+          always used.
+          """, usage='restaround [-h] [-n] profile command [restic arguments]')
+        parser.add_argument(
+            '-n', '--dry-run', help="""Only show the restic command to be executed""",
+            action='store_true', default=False)
+        parser.add_argument(
+            'profile', nargs=1, help="""
+            Use PROFILE. A relative name is first looked for
+            in ~/.config/restaround/, then in /etc/restaround/""")
+        parser.add_argument(
+            'command', nargs=1, help="""
+            the restic command to be executed""")
+        options, restic_args = parser.parse_known_args()
+        options.profile = options.profile[0]
+        options.command = options.command[0]
+        return options, restic_args
+
+    @staticmethod
+    def find_classes(baseclass):
+        result = list()
+        for glob in globals().values():
+            if hasattr(glob, "__mro__"):
+                if glob.__mro__[-2] == baseclass and len(glob.__mro__) > 2:
+                    try:
+                        instance = glob()
+                    except Exception:
+                        print('cannot instantiate %s' % glob.__name__)
+                        raise
+                    result.append(instance)
+        return result
+
+Main()
