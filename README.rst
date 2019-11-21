@@ -63,6 +63,15 @@ where the separate parts are joined by underlines. This character is not part
 of any restic_ command or argument. If you need _ in a value, do not use
 the [value] part. There is an alternative.
 
+- ``command`` is a restic command. The file only applies to that command.
+- ``no`` will disable something defined in the default profile
+- ``flag`` is a restic flag like ``with-atime``
+- ``value`` is the value for a flag likei in ``repo=value``
+- ``more values`` the flag will be repeated for all values.
+
+restaround knows which restic commands know which flags, it will only
+apply the allowed ones to a specific command.
+
 A profile directory might contain files like
 
 ::
@@ -74,13 +83,12 @@ A profile directory might contain files like
   no_with-atime
 
 
-A file applies either to all restic_ commands or only to [command]. 
+A file applies either to all restic_ commands or only to ``command``. 
 
 Some restic_ flags can be repeated like --tag:
 tag can be a file with one or several lines. Each line is extended into --tag linecontent.
 
 The restic_ flags cacert, cachedir, exclude-file, include-file, password-file are special:
-
 The corresponding file holds the content, so exclude-file extends to --exclude-file=profile/exclude-file
 Of course symbolic links are allowed. So cacert may be a symbolic link to the certification file.
 
@@ -88,7 +96,8 @@ For flags with just one argument like --repo create profile/repo with one line.
 
 The alternative form flag_value1_value2_value3 is treated like a file with 3 lines.
 So 'exclude_a_b_dirc' would extend into --exclude a --exclude b --exclude dirc
-Such a file must be empty.
+Such a file must be empty. Of course this form can only be used if the resulting file name
+is legal for the file system and if no part contains an underline.
 
 `tag` in restic_ is used as both a command and as an argument, but this should pose no problem.
 
