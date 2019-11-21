@@ -105,8 +105,7 @@ Examples
 file name                  meaning
 =========================  ==============================================================
 backup_tag_taga_tagb       backup --tag taga --tag tagb
-repo                       --repo main where main stands on the first line of `repo`
-repo_main                  --repo main
+repo                       --repo REPONAME where REPONAME stands on the first line of `repo`
 restore_no_tag             removes --tag if it was defined in the default profile
 =========================  ==============================================================
   
