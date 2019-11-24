@@ -204,35 +204,30 @@ class Profile:
         self.flags = dict()   # key: restic_name
         self.load()
 
-    def restic_parameters(self, command):
-        """Return an arg list for all flags applicable to command."""
+    def command_filter(self, command):
+        """Return a sorted list of flags applicable to command.
+
+        The order is as wanted for restic.
+        If there is a flag specific for command, the general flag value is ignored.
+
+        """
         result = []
-        # 'direct' must come last
+        # direct must come last, global flags (command None) come last
         for (flag_cmd, key), value in sorted(
-                self.flags.items(), key=lambda x: x[1].__class__ is Direct):
+                self.flags.items(), key=lambda x: (x[0][0] is None, x[1].__class__ is Direct)):
             if flag_cmd is None or flag_cmd == command:
                 if (value.__class__ in Command.accepts_flags
                         or value.__class__ in Main.commands[command].accepts_flags):
-                    restic_parm = self.restic_parameter(command, key)
-                    if restic_parm is not None:
-                        result.extend(restic_parm)
+                    if not any(x.restic_name() == command for x in result):
+                        result.append(value)
         return result
 
-    def restic_parameter(self, command, key):
-        """
-        returns None or the rest-arg with its value
-        only if the arg is applicable to command
-        """
-
-        if key not in Main.flags:
-            raise Exception('{} not implemented'.format(key))
-        try:
-            flag = self.flags[command, key]
-        except KeyError:
-            flag = self.flags[None, key]
-        if flag.values is not None:
-            return flag.args()
-        return None
+    def restic_parameters(self, command):
+        """Return all formatted flags applicable to command."""
+        for flag in self.command_filter(command):
+            if flag.values is not None:
+                for _ in flag.args():
+                    yield _
 
     def load(self):
         profile_found = False
