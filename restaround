@@ -26,9 +26,9 @@ class Flag:
         self.values = None
         self.entry = None
 
-    @property
-    def restic_name(self):
-        return self.__class__.__name__.lower().replace('_', '-')
+    @classmethod
+    def restic_name(cls):
+        return cls.__name__.lower().replace('_', '-')
 
     def set_values(self, entry):
         self.entry = entry
@@ -39,10 +39,10 @@ class Flag:
 
     def args(self):
         """Return a list of argument parts."""
-        return ['--{}={}'.format(self.restic_name, x) for x in self.values]
+        return ['--{}={}'.format(self.restic_name(), x) for x in self.values]
 
     def __str__(self):
-        return ' '.join(self.args()) if self.values else '{}'.format(self.restic_name)
+        return ' '.join(self.args()) if self.values else '{}'.format(self.restic_name())
 
     def __repr__(self):
         return str(self)
@@ -51,7 +51,7 @@ class Flag:
 class BinaryFlag(Flag):
 
     def args(self):
-        return ['--' + self.restic_name]
+        return ['--' + self.restic_name()]
 
 
 class FileFlag(Flag):
@@ -61,7 +61,7 @@ class FileFlag(Flag):
         self.values = [entry.filepath, ]
 
     def args(self):
-        return ['--{}={}'.format(self.restic_name, self.values[0])]
+        return ['--{}={}'.format(self.restic_name(), self.values[0])]
 
 
 class ListFlag(Flag):
@@ -164,8 +164,8 @@ class Entry:
         self.invert = False
         fparts = os.path.basename(filepath).split('_')
         for cmd in Main.commands.values():
-            if len(fparts) > 1 and cmd.restic_name == fparts[0] and fparts[1] in Main.flags:
-                self.command = cmd.restic_name
+            if len(fparts) > 1 and cmd.restic_name() == fparts[0] and fparts[1] in Main.flags:
+                self.command = cmd.restic_name()
                 fparts = fparts[1:]  # command split off
                 break
         if fparts[0] == 'no':
@@ -272,20 +272,19 @@ class Command:
         Quiet, Repo, Tls_Client_Cert, Verbose, Direct)
 
     def run(self, profile, cmdline_args, dry_run):
-        args = ['restic', self.restic_name]
-        args.extend(profile.restic_parameters(self.restic_name))
+        args = ['restic', self.restic_name()]
+        args.extend(profile.restic_parameters(self.restic_name()))
         if cmdline_args:
             args.extend(cmdline_args)
         print('RUN', ' '.join(args))
         if not dry_run:
             call(args)
 
-    @property
     def restic_name(self):
         return self.__class__.__name__.lower().replace('_', '-')[3:]
 
     def __str__(self):
-        return 'Command({})'.format(self.restic_name)
+        return 'Command({})'.format(self.restic_name())
 
 class CmdBackup(Command):
     accepts_flags = (
@@ -381,8 +380,8 @@ class Main:
 
     def __init__(self):
         self.parse()
-        Main.commands = {x.restic_name: x for x in self.find_classes(Command)}
-        Main.flags = {x.restic_name: x for x in self.find_classes(Flag)
+        Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
+        Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
                       if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
         options, restic_args = self.parse()
         profile = Profile(options.profile, options.command)
