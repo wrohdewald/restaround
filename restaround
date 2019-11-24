@@ -74,6 +74,9 @@ class Direct(ListFlag):
         return self.values or []
 
 
+class ScriptFlag(Flag):
+    pass
+
 class Add(Flag): pass
 class Exclude_If_Present(ListFlag): pass
 class Exclude(ListFlag): pass
@@ -101,6 +104,8 @@ class Oldest(Flag): pass
 class Parent(Flag): pass
 class Password_Command(Flag): pass
 class Path(Flag): pass
+class Post(ScriptFlag): pass
+class Pre(ScriptFlag): pass
 class Read_Data_Subset(Flag): pass
 class Remove(Flag): pass
 class Remove_All(Flag): pass
@@ -261,6 +266,7 @@ class Profile:
 class Command:
 
     accepts_flags = (
+        Pre, Post,
         Cacert, Cache_Dir, Cleanup_Cache,
         Json, Key_Hint, Limit_Download, Limit_Upload,
         No_Cache, No_Lock, Password_Command, Password_File,
@@ -281,9 +287,10 @@ class Command:
     def __str__(self):
         return 'Command({})'.format(self.restic_name())
 
+
 class CmdBackup(Command):
     accepts_flags = (
-        Exclude, Exclude_File,
+        Exclude, Exclude_File, Exclude_Caches,
         Exclude_If_Present, Files_From,
         Force, Host, IExclude, Ignore_Inode,
         One_File_System, Parent, Stdin,
@@ -305,17 +312,19 @@ class CmdDiff(Command):
     accepts_flags = (Metadata, )
 
 
-class CmdDump(Command): pass
+class CmdDump(Command):
+    accepts_flags = (Host, Path, Tag)
 
 
 class CmdFind(Command):
     accepts_flags = (
-        Blob, Ignore_Case, Long, Newest, Oldest,
+        Blob, Ignore_Case, Long, Newest, Oldest, Host,
         Pack, Path, Show_Pack_Id, Snapshot, Tag, Tree)
 
 
 class CmdForget(Command):
     accepts_flags = (
+        Path, Keep_Tag, Tag, Host, Keep_Within,
         Keep_Last, Keep_Hourly, Keep_Daily,
         Keep_Weekly, Keep_Monthly, Keep_Yearly,
         Compact, Group_By, Dry_Run, Prune)
@@ -356,7 +365,8 @@ class CmdSnapshots(Command):
     accepts_flags = (Compact, Group_By, Host, Last, Path, Tag)
 
 
-class CmdStats(Command): pass
+class CmdStats(Command):
+    accepts_flags = (Host, Mode)
 
 
 class CmdTag(Command):
