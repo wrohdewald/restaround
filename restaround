@@ -281,8 +281,9 @@ class Command:
         if not dry_run:
             call(args)
 
-    def restic_name(self):
-        return self.__class__.__name__.lower().replace('_', '-')[3:]
+    @classmethod
+    def restic_name(cls):
+        return cls.__name__.lower().replace('_', '-')[3:]
 
     def __str__(self):
         return 'Command({})'.format(self.restic_name())
