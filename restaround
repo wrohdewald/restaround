@@ -8,6 +8,10 @@
 # Copyright (c) 2019 Wolfgang Rohdewald <wolfgang@rohdewald.de>
 # See LICENSE for details.
 
+# PYTHON_ARGCOMPLETE_OK
+# for command line argument completion, put this into your .bashrc:
+# eval "$(register-python-argcomplete gpxdo)"
+# or see https://argcomplete.readthedocs.io/en/latest/
 
 """
 
@@ -16,6 +20,12 @@
 import os
 import argparse
 from subprocess import call, run
+
+try:
+    import argcomplete
+    # pylint: disable=unused-import
+except ImportError:
+    pass
 
 
 class Flag:
@@ -423,6 +433,10 @@ class Main:
         parser.add_argument(
             'command', nargs=1, choices=Main.commands.keys(), help="""
             the restic command to be executed""")
+        try:
+            argcomplete.autocomplete(parser)
+        except NameError:
+            pass
         options, restic_args = parser.parse_known_args()
         options.profile = options.profile[0]
         options.command = options.command[0]
