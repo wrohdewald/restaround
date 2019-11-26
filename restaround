@@ -234,6 +234,15 @@ class Profile:
                 for _ in flag.args():
                     yield _
 
+    @classmethod
+    def choices(cls):
+        result = []
+        for basedir in (os.path.expanduser('~/.config'), '/etc'):
+            dirname = os.path.join(basedir, 'restaround')
+            if os.path.isdir(dirname):
+                result.extend(os.listdir(dirname))
+        return sorted(x for x in set(result) if x != 'default')
+
     def load(self):
         profile_found = False
         for profile_name in ('default', self.name):
@@ -408,11 +417,11 @@ class Main:
             '--selftest', help="""Do some internal tests.""",
             action='store_true', default=False)
         parser.add_argument(
-            'profile', nargs=1, help="""
+            'profile', nargs=1, choices=Profile.choices(), help="""
             Use PROFILE. A relative name is first looked for
             in ~/.config/restaround/, then in /etc/restaround/""")
         parser.add_argument(
-            'command', nargs=1, help="""
+            'command', nargs=1, choices=Main.commands.keys(), help="""
             the restic command to be executed""")
         options, restic_args = parser.parse_known_args()
         options.profile = options.profile[0]
