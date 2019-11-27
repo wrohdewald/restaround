@@ -404,15 +404,15 @@ class Main:
             '-n', '--dry-run', help="""Only show the restic command to be executed""",
             action='store_true', default=False)
         parser.add_argument(
+            '--selftest', help="""Do some internal tests.""",
+            action='store_true', default=False)
+        parser.add_argument(
             'profile', nargs=1, help="""
             Use PROFILE. A relative name is first looked for
             in ~/.config/restaround/, then in /etc/restaround/""")
         parser.add_argument(
             'command', nargs=1, help="""
             the restic command to be executed""")
-        parser.add_argument(
-            '--selftest', help="""Do some internal tests.""",
-            action='store_true', default=False)
         options, restic_args = parser.parse_known_args()
         options.profile = options.profile[0]
         options.command = options.command[0]
@@ -437,12 +437,30 @@ class Main:
         """Check if we support all restic commands."""
         will_not_implement_command = ('help', 'enerate', 'key', 'migrate', 'self-update', 'version')
         will_not_implement_flags = {'option', 'help'}
-        help_commands = run(['restic', 'help'], capture_output=True).stdout
+        commands = Main.parse_general_help()
+        for command in commands:
+            if command in will_not_implement_command:
+                continue
+            if command not in Main.commands:
+                print('restic {} is not supported'.format(command))
+                continue
+            restic_flags = set(Command.accepts_flags)
+            restic_flags |= set(Main.commands[command].accepts_flags)
+            restic_flags = {x.restic_name() for x in restic_flags}
+            flags_in_help = Main.parse_command_help(command)
+            for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
+                print('WARN: restic {} --{} is not implemented'.format(command, unimplemented))
+            for too_much in restic_flags - flags_in_help - {'pre', 'post', 'direct'}:
+                print('WARN: {} is not supported by restic'.format(too_much))
+
+    @staticmethod
+    def parse_general_help():
         header_section = False
         flags_section = False
         commands = []
         global_flags = []
-        for _ in help_commands.split(b'\n'):
+        help_stdout = run(['restic', 'help'], capture_output=True).stdout
+        for _ in help_stdout.split(b'\n'):
             _ = _.decode('utf-8').strip()
             if not _:
                 header_section = False
@@ -457,29 +475,20 @@ class Main:
                 commands.append(_.split(' ')[0])
             elif flags_section:
                 global_flags.append(_.split('--')[1].split(' ')[0])
-        for command in commands:
-            if command in will_not_implement_command:
+        return commands
+
+    @staticmethod
+    def parse_command_help(command):
+        flags_in_help = set()
+        help_command = run(['restic', 'help', command], capture_output=True).stdout
+        header_seen = False
+        for _ in help_command.split(b'\n'):
+            _ = _.decode('utf-8').strip()
+            if _ == 'Flags:':
+                header_seen = True
                 continue
-            if command not in Main.commands:
-                print('restic {} is not supported'.format(command))
-                continue
-            command_implements_flags = set(Command.accepts_flags)
-            command_implements_flags |= set(Main.commands[command].accepts_flags)
-            command_implements_flags = {x.restic_name() for x in command_implements_flags}
-            flags_in_help = set()
-            help_command = run(['restic', 'help', command], capture_output=True).stdout
-            header_seen = False
-            for _ in help_command.split(b'\n'):
-                _ = _.decode('utf-8').strip()
-                if _ == 'Flags:':
-                    header_seen = True
-                    continue
-                if header_seen and ' --' in _ or _.startswith('--'):
-                    flag = _.split('--')[1].split(' ')[0]
-                    flags_in_help.add(flag)
-            for unimplemented in flags_in_help - command_implements_flags - will_not_implement_flags:
-                print('WARN: restic {} --{} is not implemented'.format(command, unimplemented))
-            for too_much in command_implements_flags - flags_in_help - {'pre', 'post', 'direct'}:
-                print('WARN: {} is not supported by restic'.format(too_much))
+            if header_seen and ' --' in _ or _.startswith('--'):
+                flag = _.split('--')[1].split(' ')[0]
+                flags_in_help.add(flag)
 
 Main()
