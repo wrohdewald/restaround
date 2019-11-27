@@ -51,6 +51,10 @@ class Flag:
         """Return a list of argument parts."""
         return ['--{}={}'.format(self.restic_name(), x) for x in self.values]
 
+    def add_as_argument_for(self, command):
+        """Add this flag to the command line parser."""
+        command.cmd_parser.add_argument('--{}'.format(self.restic_name()))
+
     def __str__(self):
         return ' '.join(self.args()) if self.values else '{}'.format(self.restic_name())
 
@@ -291,6 +295,21 @@ class Command:
         No_Cache, No_Lock, Password_Command, Password_File,
         Quiet, Repo, Tls_Client_Cert, Verbose, Direct)
 
+    subparsers = None
+
+    def __init__(self):
+        self.cmd_parser = None
+
+    def add_subparser(self):
+        """Default: only flags as arguments."""
+        if self.cmd_parser is None:
+            self.cmd_parser = Command.subparsers.add_parser(name=self.restic_name())
+        self.add_flags()
+
+    def add_flags(self):
+        for _ in self.accepts_flags:
+            Main.flags[_.restic_name()].add_as_argument_for(self)
+
     def run(self, profile, cmdline_args, options):
         args = ['restic', self.restic_name()]
         args.extend(profile.restic_parameters(self.restic_name()))
@@ -411,8 +430,9 @@ class Main:
         if options.selftest:
             self.restic_command_check()
         else:
-            profile = Profile(options.profile, options.command)
-            Main.commands[options.command].__class__().run(profile, restic_args, options)
+            profile = Profile(options.profile, options.subparser_name)
+            Main.commands[options.subparser_name].__class__().run(
+                profile, restic_args, options)
 
     @staticmethod
     def parse():
@@ -430,16 +450,16 @@ class Main:
             'profile', nargs=1, choices=Profile.choices(), help="""
             Use PROFILE. A relative name is first looked for
             in ~/.config/restaround/, then in /etc/restaround/""")
-        parser.add_argument(
-            'command', nargs=1, choices=Main.commands.keys(), help="""
-            the restic command to be executed""")
+        Command.subparsers = parser.add_subparsers(dest='subparser_name')
+        for _ in Main.commands.values():
+            _.add_subparser()
+
         try:
             argcomplete.autocomplete(parser)
         except NameError:
             pass
         options, restic_args = parser.parse_known_args()
         options.profile = options.profile[0]
-        options.command = options.command[0]
         return options, restic_args
 
     @staticmethod
