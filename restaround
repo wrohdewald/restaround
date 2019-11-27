@@ -32,6 +32,9 @@ class Flag:
     """
     There is a Flag class for every restic argument.
     """
+
+    index = 0
+
     def __init__(self):
         self.values = None
         self.entry = None
@@ -83,6 +86,8 @@ class ListFlag(Flag):
 
 
 class Direct(ListFlag):
+
+    index = 99
 
     def args(self):
         return self.values or []
@@ -231,9 +236,8 @@ class Profile:
 
         """
         result = []
-        # direct must come last, global flags (command None) come last
         for (flag_cmd, _), value in sorted(
-                self.flags.items(), key=lambda x: (x[0][0] is None, x[1].__class__ is Direct)):
+                self.flags.items(), key=lambda x: (x[0][0] is None, x[1].index)):
             if flag_cmd is None or flag_cmd == command:
                 if (value.__class__ in Command.accepts_flags
                         or value.__class__ in Main.commands[command].accepts_flags):
