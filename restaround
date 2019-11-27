@@ -291,13 +291,13 @@ class Command:
         No_Cache, No_Lock, Password_Command, Password_File,
         Quiet, Repo, Tls_Client_Cert, Verbose, Direct)
 
-    def run(self, profile, cmdline_args, dry_run):
+    def run(self, profile, cmdline_args, options):
         args = ['restic', self.restic_name()]
         args.extend(profile.restic_parameters(self.restic_name()))
         if cmdline_args:
             args.extend(cmdline_args)
         print('RUN', ' '.join(args))
-        if not dry_run:
+        if not options.dry_run:
             call(args)
 
     @classmethod
@@ -412,7 +412,7 @@ class Main:
             self.restic_command_check()
         else:
             profile = Profile(options.profile, options.command)
-            Main.commands[options.command].__class__().run(profile, restic_args, options.dry_run)
+            Main.commands[options.command].__class__().run(profile, restic_args, options)
 
     @staticmethod
     def parse():
