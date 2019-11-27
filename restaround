@@ -37,18 +37,18 @@ class Flag:
 
     def __init__(self):
         self.values = None
-        self.entry = None
+        self.profile_entry = None
 
     @classmethod
     def restic_name(cls):
         return cls.__name__.lower().replace('_', '-')
 
-    def set_values(self, entry):
-        self.entry = entry
-        if len(entry.values) > 1 and not isinstance(self, ListFlag):
+    def set_values(self, profile_entry):
+        self.profile_entry = profile_entry
+        if len(profile_entry.values) > 1 and not isinstance(self, ListFlag):
             raise Exception('{} must define only one value, it has {}'.format(
-                entry.filepath, entry.values))
-        self.values = entry.values
+                profile_entry.filepath, profile_entry.values))
+        self.values = profile_entry.values
 
     def args(self):
         """Return a list of argument parts."""
@@ -74,8 +74,8 @@ class BinaryFlag(Flag):
 class FileFlag(Flag):
     """These flags always give file names."""
 
-    def set_values(self, entry):
-        self.values = [entry.filepath, ]
+    def set_values(self, profile_entry):
+        self.values = [profile_entry.filepath, ]
 
     def args(self):
         return ['--{}={}'.format(self.restic_name(), self.values[0])]
@@ -178,7 +178,7 @@ class Cache_Dir(FileFlag): pass
 class Exclude_File(FileFlag): pass
 class Password_File(FileFlag): pass
 
-class Entry:
+class ProfileEntry:
 
     """Extract info from a file in the profile directory."""
 
@@ -276,18 +276,18 @@ class Profile:
 
     def load_from_directory(self, dirname):
         for filename in os.listdir(dirname):
-            self.load_entry(os.path.join(dirname, filename))
+            self.load_profile_entry(os.path.join(dirname, filename))
 
-    def load_entry(self, filepath):
-        entry = Entry(filepath)
-        if entry.invert:
-            if entry.flag_key in self.flags:
-                del self.flags[entry.flag_key]
+    def load_profile_entry(self, filepath):
+        profile_entry = ProfileEntry(filepath)
+        if profile_entry.invert:
+            if profile_entry.flag_key in self.flags:
+                del self.flags[profile_entry.flag_key]
             return
-        flag = self.flags.get(entry.flag_key, Main.flags[entry.flag_name].__class__())
+        flag = self.flags.get(profile_entry.flag_key, Main.flags[profile_entry.flag_name].__class__())
 
-        flag.set_values(entry)
-        self.flags[entry.flag_key] = flag
+        flag.set_values(profile_entry)
+        self.flags[profile_entry.flag_key] = flag
 
 
 class Command:
