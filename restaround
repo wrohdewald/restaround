@@ -384,7 +384,6 @@ class Main:
     flags = dict()
 
     def __init__(self):
-        self.parse()
         Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
         Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
                       if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
