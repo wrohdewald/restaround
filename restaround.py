@@ -290,7 +290,10 @@ class Profile:
             if flagname in opt:
                 if opt[flagname] is not None:
                     flag = flag_class()
-                    flag.values = opt[flagname]
+                    if isinstance(opt[flagname], list):
+                        flag.values = opt[flagname]
+                    else:
+                        flag.values = [opt[flagname]]
                     self.use_flag(flag)
 
     def restic_parameters(self):
