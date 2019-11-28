@@ -34,32 +34,40 @@ class Flag:
     """
 
     index = 0
+    nargs = None
+    action = None
 
     def __init__(self):
         self.values = None
-        self.profile_entry = None
+        self.remove = False
+
+    def __iadd__(self, other):
+        """Combine other values into self."""
+        assert not other.remove
+        if self.values is None:
+            self.values = other.values
+        elif isinstance(other.values, list):
+            self.values.extend(other.values)
+        else:
+            self.values = other.values
+        return self
 
     @classmethod
     def restic_name(cls):
         return cls.__name__.lower().replace('_', '-')
 
-    def set_values(self, profile_entry):
-        self.profile_entry = profile_entry
-        if len(profile_entry.values) > 1 and not isinstance(self, ListFlag):
-            raise Exception('{} must define only one value, it has {}'.format(
-                profile_entry.filepath, profile_entry.values))
-        self.values = profile_entry.values
-
     def args(self):
         """Return a list of argument parts."""
         return ['--{}={}'.format(self.restic_name(), x) for x in self.values]
 
-    def add_as_argument_for(self, command):
+    @classmethod
+    def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
-        command.cmd_parser.add_argument('--{}'.format(self.restic_name()))
+        command.cmd_parser.add_argument(
+            '--{}'.format(cls.restic_name()), nargs=cls.nargs, action=cls.action)
 
     def __str__(self):
-        return ' '.join(self.args()) if self.values else '{}'.format(self.restic_name())
+        return ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
 
     def __repr__(self):
         return str(self)
@@ -71,30 +79,35 @@ class BinaryFlag(Flag):
         return ['--' + self.restic_name()]
 
 
-class FileFlag(Flag):
-    """These flags always give file names."""
-
-    def set_values(self, profile_entry):
-        self.values = [profile_entry.filepath, ]
-
-    def args(self):
-        return ['--{}={}'.format(self.restic_name(), self.values[0])]
-
-
 class ListFlag(Flag):
     """The flag is repeated for every line in the config file."""
 
+    action = 'append'
 
-class Direct(ListFlag):
 
-    index = 99
+class FileFlag(ListFlag):
+    """These flags always give file names."""
+
+
+class PositionalFlag(ListFlag):
+
+    index = 98
+    nargs = '*'
 
     def args(self):
-        return self.values or []
+        return self.values
+
+    def add_as_argument_for(self, command):
+        """Add this flag to the command line parser."""
+        command.cmd_parser.add_argument(self.restic_name(), nargs=self.nargs)
 
 
 class ScriptFlag(Flag):
-    pass
+
+    @classmethod
+    def add_as_argument_for(cls, command):
+        """Not a real argument."""
+
 
 class Add(Flag): pass
 class Exclude_If_Present(ListFlag): pass
@@ -178,6 +191,12 @@ class Cache_Dir(FileFlag): pass
 class Exclude_File(FileFlag): pass
 class Password_File(FileFlag): pass
 
+class Mountpoint(PositionalFlag): pass
+class FileDir(PositionalFlag): pass
+class SnapshotID(PositionalFlag): pass
+class Objects(PositionalFlag): pass
+class Pattern(PositionalFlag): pass
+
 class ProfileEntry:
 
     """Extract info from a file in the profile directory."""
@@ -185,15 +204,19 @@ class ProfileEntry:
     def __init__(self, filepath):
         self.filepath = filepath
         self.command = None
-        self.invert = False
+        self.remove = False
+        self.inherit = None
         fparts = os.path.basename(filepath).split('_')
+        if fparts[0] == 'inherit':
+            self.inherit = fparts[1]
+            return
         for cmd in Main.commands.values():
             if len(fparts) > 1 and cmd.restic_name() == fparts[0] and fparts[1] in Main.flags:
                 self.command = cmd.restic_name()
                 fparts = fparts[1:]  # command split off
                 break
         if fparts[0] == 'no':
-            self.invert = True
+            self.remove = True
             fparts = fparts[1:]
         self.flag_name = fparts[0]
         self.values = fparts[1:]
@@ -201,103 +224,130 @@ class ProfileEntry:
             if os.stat(self.filepath).st_size:
                 raise Exception("{}: file must be empty".format(self.filepath))
         else:
-            self.values = self.file_lines()
+            self.values = self.__file_lines()
 
-    def file_lines(self):
+    def __file_lines(self):
         """Return a list of all stripped lines, empty lines exclude.
         Lines starting with # are also excluded."""
         result = [x.strip() for x in open(self.filepath, encoding='utf-8').readlines()]
         return [x for x in result if x and not x.startswith('#')]
 
+    def flag(self):
+        """Create a new flag for self.
+
+        If the profile entry does not apply for Main.command, returns None.
+
+        """
+        if self.command is not None and self.command != Main.command:
+            return None
+
+        flag_name = self.flag_name
+        result = Main.flags[flag_name].__class__()
+        result.remove = self.remove
+        if not result.remove:
+            if isinstance(result, FileFlag):
+                if result.values is None:
+                    result.values = []
+                result.values.insert(0, self.filepath)
+            elif isinstance(result, ListFlag):
+                if result.values is None:
+                    result.values = []
+                result.values = self.values + result.values
+            else:
+                if result.values or len(self.values) > 1:
+                    raise Exception(
+                        'must define only one value for {}: {}'.format(result, self))
+                result.values = self.values
+        return result
+
     @property
-    def flag_key(self):
-        """key into Profile.flags"""
-        return (self.command, self.flag_name)
+    def __str__(self):
+        return '{}({})'.format(self.filepath, self.values)
 
 
 class Profile:
 
     """
-    This holds everything defined in a profile.
+    This holds everything defined in a profile that may apply to command.
     """
 
-    def __init__(self, name, command):
-        super().__init__()
-        self.name = name
-        self.command = command
+    def __init__(self, options):
+        self.options = options
         self.flags = dict()   # key: restic_name
-        self.load()
+        self.use_options()
+        self.inherit(options.profile)
+        self.inherit('default')
 
-    def command_filter(self, command):
-        """Return a sorted list of flags applicable to command.
+    def command_accepts(self):
+        """Returns accepted flag classes."""
+        return Main.commands[self.options.subparser_name].accepts_flags + Command.accepts_flags
 
-        The order is as wanted for restic.
-        If there is a flag specific for command, the general flag value is ignored.
+    def use_options(self):
+        """Use options to set up profile flags."""
+        opt = self.options.__dict__
+        for flag_class in self.command_accepts():
+            flagname = flag_class.__name__.lower()
+            if flagname in opt:
+                if opt[flagname] is not None:
+                    flag = flag_class()
+                    flag.values = opt[flagname]
+                    self.use_flag(flag)
 
-        """
-        result = []
-        for (flag_cmd, _), value in sorted(
-                self.flags.items(), key=lambda x: (x[0][0] is None, x[1].index)):
-            if flag_cmd is None or flag_cmd == command:
-                if (value.__class__ in Command.accepts_flags
-                        or value.__class__ in Main.commands[command].accepts_flags):
-                    if not any(x.restic_name() == command for x in result):
-                        result.append(value)
-        return result
-
-    def restic_parameters(self, command):
+    def restic_parameters(self):
         """Return all formatted flags applicable to command."""
-        for flag in self.command_filter(command):
-            if flag.values is not None:
-                for _ in flag.args():
-                    yield _
+        for flag in sorted(self.flags.values(), key=lambda x: x.index):
+            assert flag.values is not None
+            for _ in flag.args():
+                yield _
 
     @classmethod
     def choices(cls):
-        result = []
+        result = ['help', ]
         for basedir in (os.path.expanduser('~/.config'), '/etc'):
             dirname = os.path.join(basedir, 'restaround')
             if os.path.isdir(dirname):
                 result.extend(os.listdir(dirname))
         return sorted(x for x in set(result) if x != 'default')
 
-    def load(self):
-        profile_found = False
-        for profile_name in ('default', self.name):
-            for basedir in (os.path.expanduser('~/.config'), '/etc'):
-                dirname = os.path.join(basedir, 'restaround', profile_name)
-                if os.path.isdir(dirname):
-                    if profile_name == self.name:
-                        profile_found = True
-                    self.load_from_directory(dirname)
-                    break
-        if not profile_found:
-            raise Exception('Profile {} not found'.format(self.name))
+    def inherit(self, profile_name):
+        """Inherit settings from other profile."""
+        for basedir in ('/etc', os.path.expanduser('~/.config')):
+            dirname = os.path.join(basedir, 'restaround', profile_name)
+            if os.path.isdir(dirname):
+                print('loading', dirname)
+                for filename in os.listdir(dirname):
+                    self.load_from_file(os.path.join(dirname, filename))
 
-    def load_from_directory(self, dirname):
-        for filename in os.listdir(dirname):
-            self.load_profile_entry(os.path.join(dirname, filename))
-
-    def load_profile_entry(self, filepath):
-        profile_entry = ProfileEntry(filepath)
-        if profile_entry.invert:
-            if profile_entry.flag_key in self.flags:
-                del self.flags[profile_entry.flag_key]
+    def load_from_file(self, filepath):
+        """Load Setting from a file."""
+        entry = ProfileEntry(filepath)
+        if entry.inherit:
+            self.inherit(entry.inherit)
             return
-        flag = self.flags.get(profile_entry.flag_key, Main.flags[profile_entry.flag_name].__class__())
+        flag = entry.flag()
+        if flag is not None:
+            self.use_flag(flag)
 
-        flag.set_values(profile_entry)
-        self.flags[profile_entry.flag_key] = flag
+    def use_flag(self, flag):
+        """Integrate flag into this profile."""
+        if flag.__class__ in self.command_accepts():
+            flag_name = flag.restic_name()
+            if flag.remove and flag_name in self.flags:
+                del self.flags[flag_name]
+                return
+            if flag_name in self.flags:
+                self.flags[flag_name] += flag
+            else:
+                self.flags[flag_name] = flag
 
 
 class Command:
-
     accepts_flags = (
         Pre, Post,
         Cacert, Cache_Dir, Cleanup_Cache,
         Json, Key_Hint, Limit_Download, Limit_Upload,
         No_Cache, No_Lock, Password_Command, Password_File,
-        Quiet, Repo, Tls_Client_Cert, Verbose, Direct)
+        Quiet, Repo, Tls_Client_Cert, Verbose)
 
     subparsers = None
 
@@ -305,7 +355,6 @@ class Command:
         self.cmd_parser = None
 
     def add_subparser(self):
-        """Default: only flags as arguments."""
         if self.cmd_parser is None:
             self.cmd_parser = Command.subparsers.add_parser(name=self.restic_name())
         self.add_flags()
@@ -314,11 +363,9 @@ class Command:
         for _ in self.accepts_flags:
             Main.flags[_.restic_name()].add_as_argument_for(self)
 
-    def run(self, profile, cmdline_args, options):
+    def run(self, profile, options):
         args = ['restic', self.restic_name()]
-        args.extend(profile.restic_parameters(self.restic_name()))
-        if cmdline_args:
-            args.extend(cmdline_args)
+        args.extend(profile.restic_parameters())
         print('RUN', ' '.join(args))
         if not options.dry_run:
             call(args)
@@ -331,20 +378,34 @@ class Command:
         return 'Command({})'.format(self.restic_name())
 
 
+class CmdHelp(Command):
+    """help."""
+
+#    def __init__(self):
+#        super().__init__(help="""Show specific help for a command""")
+#        self.cmd_parser.add_argument(
+#            'subcommand', nargs='?', choices=SubCommand.subparsers._name_parser_map.keys())  # pylint: disable=protected-access
+#        logging.getLogger().setLevel('ERROR')
+#
+#    def _exec(self):
+#        raise Exception("must not happen")
+
+
 class CmdBackup(Command):
     accepts_flags = (
         Exclude, Exclude_File, Exclude_Caches,
         Exclude_If_Present, Files_From,
         Force, Host, IExclude, Ignore_Inode,
         One_File_System, Parent, Stdin,
-        Stdin_Filename, Tag, Time, With_Atime)
+        Stdin_Filename, Tag, Time, With_Atime, FileDir)
 
 
 class CmdCache(Command):
     accepts_flags = (Cleanup, Max_Age, No_Size)
 
 
-class CmdCat(Command): pass
+class CmdCat(Command):
+    accepts_flags = (Objects, )
 
 
 class CmdCheck(Command):
@@ -352,7 +413,7 @@ class CmdCheck(Command):
 
 
 class CmdDiff(Command):
-    accepts_flags = (Metadata, )
+    accepts_flags = (Metadata, SnapshotID)
 
 
 class CmdDump(Command):
@@ -362,7 +423,7 @@ class CmdDump(Command):
 class CmdFind(Command):
     accepts_flags = (
         Blob, Ignore_Case, Long, Newest, Oldest, Host,
-        Pack, Path, Show_Pack_Id, Snapshot, Tag, Tree)
+        Pack, Path, Show_Pack_Id, Snapshot, Tag, Tree, Pattern)
 
 
 class CmdForget(Command):
@@ -370,13 +431,14 @@ class CmdForget(Command):
         Path, Keep_Tag, Tag, Host, Keep_Within,
         Keep_Last, Keep_Hourly, Keep_Daily,
         Keep_Weekly, Keep_Monthly, Keep_Yearly,
-        Compact, Group_By, Dry_Run, Prune)
+        Compact, Group_By, Dry_Run, Prune, SnapshotID)
 
 
 class CmdInit(Command): pass
 
 
-class CmdList(Command): pass
+class CmdList(Command):
+    accepts_flags = (Objects, )
 
 
 class CmdLs(Command):
@@ -388,7 +450,7 @@ class CmdMount(Command):
         Allow_Other, Allow_Root, Host,
         No_Default_Permissions,
         Owner_Root, Path, Snapshot_Template,
-        Tag)
+        Tag, Mountpoint)
 
 class CmdPrune(Command): pass
 
@@ -401,19 +463,19 @@ class CmdRecover(Command): pass
 class CmdRestore(Command):
     accepts_flags = (
         Exclude, Host, IExclude, IInclude,
-        Include, Path, Tag, Target, Verify)
+        Include, Path, Tag, Target, Verify, SnapshotID)
 
 
 class CmdSnapshots(Command):
-    accepts_flags = (Compact, Group_By, Host, Last, Path, Tag)
+    accepts_flags = (Compact, Group_By, Host, Last, Path, Tag, SnapshotID)
 
 
 class CmdStats(Command):
-    accepts_flags = (Host, Mode)
+    accepts_flags = (Host, Mode, SnapshotID)
 
 
 class CmdTag(Command):
-    accepts_flags = (Add, Host, Path, Remove, Set, Tag)
+    accepts_flags = (Add, Host, Path, Remove, Set, Tag, SnapshotID)
 
 
 class CmdUnlock(Command):
@@ -422,24 +484,33 @@ class CmdUnlock(Command):
 
 class Main:
 
-    profile = dict()
     commands = dict()
     flags = dict()
+    command = None
 
     def __init__(self):
         Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
         Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
                       if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
-        options, restic_args = self.parse()
+        parser = self.build_parser()
+        options = parser.parse_args()
+        options.profile = options.profile[0]
         if options.selftest:
             self.restic_command_check()
+        elif options.profile == 'help':
+            if options.subparser_name is None:
+                parser.print_help()
+            else:
+                Command.subparsers._name_parser_map[  # pylint: disable=protected-access
+                    Main.commands[options.subparser_name].restic_name()].print_help()
         else:
-            profile = Profile(options.profile, options.subparser_name)
-            Main.commands[options.subparser_name].__class__().run(
-                profile, restic_args, options)
+            profile = Profile(options)
+            Main.command = options.subparser_name
+            Main.commands[Main.command].__class__().run(
+                profile, options)
 
     @staticmethod
-    def parse():
+    def build_parser():
         parser = argparse.ArgumentParser(description="""
           Makes using restic simpler with the help of profiles. Profile 'default' is
           always used.
@@ -448,7 +519,7 @@ class Main:
             '-n', '--dry-run', help="""Only show the restic command to be executed""",
             action='store_true', default=False)
         parser.add_argument(
-            '--selftest', help="""Do some internal tests.""",
+            '-s', '--selftest', help="""Do some internal tests.""",
             action='store_true', default=False)
         parser.add_argument(
             'profile', nargs=1, choices=Profile.choices(), help="""
@@ -462,9 +533,7 @@ class Main:
             argcomplete.autocomplete(parser)
         except NameError:
             pass
-        options, restic_args = parser.parse_known_args()
-        options.profile = options.profile[0]
-        return options, restic_args
+        return parser
 
     @staticmethod
     def find_classes(baseclass):
@@ -483,7 +552,8 @@ class Main:
     @staticmethod
     def restic_command_check():
         """Check if we support all restic commands."""
-        will_not_implement_command = ('help', 'enerate', 'key', 'migrate', 'self-update', 'version')
+        will_not_implement_command = (
+            'help', 'generate', 'key', 'migrate', 'self-update', 'version')
         will_not_implement_flags = {'option', 'help'}
         commands = Main.parse_general_help()
         for command in commands:

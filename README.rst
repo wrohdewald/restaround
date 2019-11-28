@@ -4,16 +4,19 @@ What is restaround?
 restaround is a wrapper around the backup utility restic_ simplifying its use.
 
 This is done by defining profiles. A profile defines the arguments to be used for restic_.
+Profiles can inherit from others.
 
 
 Synopsis
 ========
 
-Usage: restaround [-h] [-n] profile command [restic arguments]
+Usage: restaround [-h] [-n] [-s] profile command [restic arguments]
 
-  -h, --help     show this help message and exit
+  -h, --help      show this help message and exit
 
-  -n, --dry-run  Only show the restic command to be executed
+  -n, --dry-run   Only show the restic command to be executed
+
+  -s, --selftest  Check if restaround and restic are compatible
 
 
 ========================== =====================================================================================================
@@ -32,7 +35,7 @@ Examples where `main` is the name of a profile:
 
   restaround main backup --with-atime
   restaround --dry-run main snapshots
-  restaround main diff 3a5f latest
+  restaround main diff --metadata 3a5f latest
   restaround main mount
 
 
@@ -44,18 +47,17 @@ Location
 
 Every profile is defined within its own directory. They are searched first
 in `~/.config/restaround` and then in `/etc/restaround`. If the same profile
-is defined in both places, the one in `/etc/restaround` is ignored.
-
-There is a profile named `default` which is always applied.
-One more profile can be specified which overrides or removes flags from the default
-profile. If you want to combine things, use the special file
-"direct" as described below.
+is defined in both places: See Inheriting_.
 
 
 Definition
 ----------
 A profile is implemented as a directory. Most files in that directory correspond to 
-a restic_ flag - same spelling. The full name can be built as follows:
+a restic_ flag - same spelling. In restic_, however the positional flags sometimes have
+names which do not allow this like restic backup: ``FILE/DIR [FILE/DIR] ...``.
+In that case, say ``restaround help backup`` to see the name restaround wants, in this case ``filedir``.
+
+The full name can be built as follows:
 
   `[command] [no] [flag] [value] [value] ...`
 
@@ -81,7 +83,7 @@ A profile directory might contain files like
   password-file
   repo
   no_with-atime
-
+  inherit_xxx
 
 A file applies either to all restic_ commands or only to ``command``. 
 
@@ -119,33 +121,47 @@ restore_no_tag             removes --tag if it was defined in the default profil
 =========================  ==============================================================
   
 
-Special files
--------------
 
-direct specifies arguments to be added at the end of the restic_ command. Most useful for the backup command
+Inheriting
+----------
+You have two possibilities:
 
-Example for backup_direct:
+- You can always use symbolic links for all files pointing to another profile.
+- A file like inherit_xxxx inherits settings from profile xxxx. You can inherit from any number of other profiles.
+  If there is a profile named `default`, it is always inherited from.
 
---exclude-file=/etc/restaround/default/exclude-file --exclude-file=/etc/restaround/s5/created_by_pre_script /home
+One possibility would be to define separate profiles for the source and the repository and then combine them:
 
-because restic_ always wants to know on the command line what to backup. There is no specific argument for that.
+=============================== =========================================================
+Directory                       Files
+=============================== =========================================================
+/etc/restaround/default         exclude-caches mountpoint
+/etc/restaround/local           password-file repo
+/etc/restaround/remote          password-file repo
+/etc/restaround/mydata          exclude-file filedir
+/etc/restaround/mydata_local    inherit_local inherit_mydata
+/etc/restaround/mydata_remote   inherit_asterix inherit_mydata
+=============================== =========================================================
 
 
-Re-Use of a profile
--------------------
-There is no explicit support for re-using profiles apart from the default profile.
-However you can use symbolic links for all files pointing to other profile.
+Backup mydata on a remote repository and list all snapshots on that repository:
+
+::
+
+  restaround mydata_remote backup
+  restaround remote snapshots
 
 
 Installation
 ============
 Simply place the file `restaround` in `/usr/local/bin`
-
+ 
 TODO
 ====
 - pip install restaround
 - bash auto completion
 - more user friendly error messages
 - pre and post scripts
-
+ 
 .. _restic: https://restic.net
+
