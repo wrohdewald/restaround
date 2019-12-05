@@ -10,7 +10,7 @@
 
 # PYTHON_ARGCOMPLETE_OK
 # for command line argument completion, put this into your .bashrc:
-# eval "$(register-python-argcomplete gpxdo)"
+# eval "$(register-python-argcomplete restaround)"
 # or see https://argcomplete.readthedocs.io/en/latest/
 
 """
