@@ -271,9 +271,13 @@ class ProfileEntry:
                 result.values = self.values
         return result
 
-    @property
     def __str__(self):
-        return '{}({})'.format(self.filepath, self.values)
+        result = 'Entry('
+        if self.command:
+            result += 'command=' + self.command + ','
+        result += 'path=' + str(self.filepath) + ','
+        result += 'values=' + ','.join(str(x) for x in self.values) + ')'
+        return result
 
 
 class Profile:
