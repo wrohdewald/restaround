@@ -76,7 +76,15 @@ class Flag:
 class BinaryFlag(Flag):
 
     def args(self):
-        return ['--' + self.restic_name()]
+        if self.values[0]:
+            return ['--' + self.restic_name()]
+        return []
+
+    @classmethod
+    def add_as_argument_for(cls, command):
+        """Add this flag to the command line parser."""
+        command.cmd_parser.add_argument(
+            '--{}'.format(cls.restic_name()), action='store_true', default=False)
 
 
 class ListFlag(Flag):
@@ -249,6 +257,8 @@ class ProfileEntry:
                 if result.values is None:
                     result.values = []
                 result.values.insert(0, self.filepath)
+            elif isinstance(result, BinaryFlag):
+                result.values = self.values
             elif isinstance(result, ListFlag):
                 if result.values is None:
                     result.values = []
