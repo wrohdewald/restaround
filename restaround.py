@@ -503,6 +503,7 @@ class Main:
                       if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
         parser = self.build_parser()
         options = parser.parse_args()
+        Main.command = options.subparser_name
         options.profile = options.profile[0]
         if options.selftest:
             self.restic_command_check()
@@ -514,7 +515,6 @@ class Main:
                     Main.commands[options.subparser_name].restic_name()].print_help()
         else:
             profile = Profile(options)
-            Main.command = options.subparser_name
             Main.commands[Main.command].__class__().run(
                 profile, options)
 
