@@ -52,7 +52,7 @@ is defined in both places: See Inheriting_.
 
 Definition
 ----------
-A profile is implemented as a directory. Most files in that directory correspond to 
+A profile is implemented as a directory. Most files in that directory correspond to
 a restic_ flag - same spelling. In restic_, however the positional flags sometimes have
 names which do not allow this like restic backup: ``FILE/DIR [FILE/DIR] ...``.
 In that case, say ``restaround help backup`` to see the name restaround wants, in this case ``filedir``.
@@ -65,11 +65,11 @@ where the separate parts are joined by underlines. This character is not part
 of any restic_ command or argument. If you need _ in a value, do not use
 the [value] part. There is an alternative.
 
-- ``command`` is a restic command. The file only applies to that command.
-- ``no`` will disable something defined in the default profile
-- ``flag`` is a restic flag like ``with-atime``
+- ``command`` is a restic command. The file only applies to that command. If not given, it applies to all commands
+- ``no`` will disable something defined in the inherited profiles
+- ``flag`` is a restic flag like ``with-atime``. Special flags are ``inherit``, ``pre`` and ``post``
 - ``value`` is the value for a flag likei in ``repo=value``
-- ``more values`` the flag will be repeated for all values.
+- ``more values`` the flag will be repeated for all values
 
 restaround knows which restic commands know which flags, it will only
 apply the allowed ones to a specific command.
@@ -78,14 +78,13 @@ A profile directory might contain files like
 
 ::
 
-  backup_direct
+  backup_pre
+  backup_filedir
   exclude-file
   password-file
   repo
   no_with-atime
   inherit_xxx
-
-A file applies either to all restic_ commands or only to ``command``. 
 
 Some restic_ flags can be repeated like --tag:
 tag can be a file with one or several lines. Each line is extended into --tag linecontent.
@@ -109,21 +108,18 @@ tag_taga  is the "tag" flag applied to all commands as --tag taga
 If you really want to do --tag=tag, you can define a file named tag (or tag_tag) with
 one line "tag".
 
-Examples
---------
 
-=========================  ==============================================================
-file name                  meaning
-=========================  ==============================================================
-backup_tag_taga_tagb       backup --tag taga --tag tagb
-repo                       --repo REPONAME where REPONAME stands on the first line of `repo`
-restore_no_tag             removes --tag if it was defined in the default profile
-=========================  ==============================================================
-  
+Special flags
+-------------
+
+In addition to the restic_ flags, there are the special flags ``inherit``, see
+Inheriting_, and ``pre`` / ``post``, see `Pre- and Postscripts`_.
+
 
 
 Inheriting
 ----------
+
 You have two possibilities:
 
 - You can always use symbolic links for all files pointing to another profile.
@@ -152,16 +148,52 @@ Backup mydata on a remote repository and list all snapshots on that repository:
   restaround remote snapshots
 
 
+
+Pre- and Postscripts
+--------------------
+
+To be implemented.
+
+The special flag ``pre`` defines a script to be executed before the restic_ command. If the
+exit code is not 0, restaround aborts.
+
+The special flag ``post`` defines a script to be executed after the restic_ command. It
+gets the exit code of the restic_ command in the shell variable ``RESTIC_RESULT``.
+
+This also allows defining chains like backup, check, forget, prune. Just be careful
+not to define endless loops.
+
+
+
+Examples
+--------
+
+=========================  ==============================================================
+file name                  meaning
+=========================  ==============================================================
+backup_tag_taga_tagb       backup --tag taga --tag tagb
+repo                       --repo REPONAME where REPONAME stands on the first line of `repo`
+restore_no_tag             removes --tag if it was defined in the default profile
+=========================  ==============================================================
+
+
+
 Installation
 ============
 Simply place the file `restaround` in `/usr/local/bin`
- 
+
+
+
 TODO
 ====
 - pip install restaround
-- bash auto completion
 - more user friendly error messages
 - pre and post scripts
- 
+- check should exit 1 for failure, restic does not
+- restaround cpal will use cp -al and create repodir/../repodir.before_prune.YYYY-MM-DDThh:mm:ss
+- restaround rmcpal removes it
+- inherit: Make it a real flag, right now the form backup_inherit_* is not possible.
+
+
 .. _restic: https://restic.net
 
