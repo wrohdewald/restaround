@@ -374,7 +374,11 @@ class Command:
         self.add_flags()
 
     def add_flags(self):
+        to_be_added = list(Command.accepts_flags)
         for _ in self.accepts_flags:
+            if _ not in to_be_added:
+                to_be_added.append(_)
+        for _ in to_be_added:
             Main.flags[_.restic_name()].add_as_argument_for(self)
 
     def run(self, profile, options):
