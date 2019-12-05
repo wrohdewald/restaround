@@ -105,9 +105,10 @@ class PositionalFlag(ListFlag):
     def args(self):
         return self.values
 
-    def add_as_argument_for(self, command):
+    @classmethod
+    def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
-        command.cmd_parser.add_argument(self.restic_name(), nargs=self.nargs)
+        command.cmd_parser.add_argument(cls.restic_name(), nargs=cls.nargs)
 
 
 class ScriptFlag(Flag):
