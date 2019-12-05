@@ -36,6 +36,7 @@ class Flag:
     index = 0
     nargs = None
     action = None
+    removable = True  # no_command is legal
 
     def __init__(self):
         self.values = None
@@ -127,6 +128,10 @@ class Host(Flag): pass
 class IExclude(Flag): pass
 class IInclude(Flag): pass
 class Include(ListFlag): pass
+
+class Inherit(ListFlag):
+    removable = False  # no_inherit is illegal
+
 class Key_Hint(Flag): pass
 class Keep_Daily(Flag): pass
 class Keep_Hourly(Flag): pass
@@ -214,11 +219,7 @@ class ProfileEntry:
         self.filepath = filepath
         self.command = None
         self.remove = False
-        self.inherit = None
         fparts = os.path.basename(filepath).split('_')
-        if fparts[0] == 'inherit':
-            self.inherit = fparts[1]
-            return
         for cmd in Main.commands.values():
             if len(fparts) > 1 and cmd.restic_name() == fparts[0] and fparts[1] in Main.flags:
                 self.command = cmd.restic_name()
@@ -252,6 +253,8 @@ class ProfileEntry:
 
         flag_name = self.flag_name
         result = Main.flags[flag_name].__class__()
+        if self.remove and not result.removable:
+            raise Exception('no_{} is not implemented'.format(flag_name))
         result.remove = self.remove
         if not result.remove:
             if isinstance(result, FileFlag):
@@ -338,30 +341,31 @@ class Profile:
 
     def load_from_file(self, filepath):
         """Load Setting from a file."""
-        entry = ProfileEntry(filepath)
-        if entry.inherit:
-            self.inherit(entry.inherit)
-            return
-        flag = entry.flag()
+        flag = ProfileEntry(filepath).flag()
         if flag is not None:
             self.use_flag(flag)
 
     def use_flag(self, flag):
         """Integrate flag into this profile."""
         if flag.__class__ in self.command_accepts():
-            flag_name = flag.restic_name()
-            if flag.remove and flag_name in self.flags:
-                del self.flags[flag_name]
-                return
-            if flag_name in self.flags:
-                self.flags[flag_name] += flag
+            if flag.__class__ is Inherit:
+                for _ in flag.values:
+                    self.inherit(_)
             else:
-                self.flags[flag_name] = flag
+                flag_name = flag.restic_name()
+                if flag.remove and flag_name in self.flags:
+                    del self.flags[flag_name]
+                    return
+                if flag_name in self.flags:
+                    self.flags[flag_name] += flag
+                else:
+                    self.flags[flag_name] = flag
 
 
 class Command:
+    # Inherit must be first !
     accepts_flags = (
-        Pre, Post,
+        Inherit, Pre, Post,
         Cacert, Cache_Dir, Cleanup_Cache,
         Json, Key_Hint, Limit_Download, Limit_Upload,
         No_Cache, No_Lock, Password_Command, Password_File,

@@ -120,11 +120,16 @@ Inheriting_, and ``pre`` / ``post``, see `Pre- and Postscripts`_.
 Inheriting
 ----------
 
-You have two possibilities:
+You can always use symbolic links for all files pointing to another profile. But there is
+another way: The special flag ``inherit``. It can be defined just like a normal flag but
+it will be executed by restaround instead of passing it to restic. So you can use
 
-- You can always use symbolic links for all files pointing to another profile.
-- A file like inherit_xxxx inherits settings from profile xxxx. You can inherit from any number of other profiles.
-  If there is a profile named `default`, it is always inherited from.
+- ``--inherit=remote``
+- empty file ``backup_inherit_remote``
+- file with content ``inherit``
+
+You can inherit from any number of other profiles.
+If there is a profile named ``default``, it is always inherited from.
 
 Most flags can be passed multiple times to restic. For those, restaround will follow
 the inheritance tree from the top (the ``default`` profile) to the bottom (the profile
@@ -194,9 +199,8 @@ TODO
 - more user friendly error messages
 - pre and post scripts
 - check should exit 1 for failure, restic does not
-- restaround cpal will use cp -al and create repodir/../repodir.before_prune.YYYY-MM-DDThh:mm:ss
+- restaround cpal will use cp -al and create something like repodir/../repodir.before_prune.YYYY-MM-DDThh:mm:ss
 - restaround rmcpal removes it
-- inherit: Make it a real flag, right now the form backup_inherit_* is not possible.
 
 
 .. _restic: https://restic.net
