@@ -391,19 +391,6 @@ class Command:
         return 'Command({})'.format(self.restic_name())
 
 
-class CmdHelp(Command):
-    """help."""
-
-#    def __init__(self):
-#        super().__init__(help="""Show specific help for a command""")
-#        self.cmd_parser.add_argument(
-#            'subcommand', nargs='?', choices=SubCommand.subparsers._name_parser_map.keys())  # pylint: disable=protected-access
-#        logging.getLogger().setLevel('ERROR')
-#
-#    def _exec(self):
-#        raise Exception("must not happen")
-
-
 class CmdBackup(Command):
     accepts_flags = (
         Exclude, Exclude_File, Exclude_Caches,
