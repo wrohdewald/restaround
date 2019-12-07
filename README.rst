@@ -126,26 +126,30 @@ You have two possibilities:
 - A file like inherit_xxxx inherits settings from profile xxxx. You can inherit from any number of other profiles.
   If there is a profile named `default`, it is always inherited from.
 
-One possibility would be to define separate profiles for the source and the repository and then combine them:
+Most flags can be passed multiple times to restic. For those, restaround will follow
+the inheritance tree from the top (the ``default`` profile) to the bottom (the profile
+passed to restaround on the command line). Lastly, the arguments passed directly as
+command line arguments are appended.
 
-=============================== =========================================================
-Directory                       Files
-=============================== =========================================================
-/etc/restaround/default         exclude-caches mountpoint
-/etc/restaround/local           password-file repo
-/etc/restaround/remote          password-file repo
-/etc/restaround/mydata          exclude-file filedir
-/etc/restaround/mydata_local    inherit_local inherit_mydata
-/etc/restaround/mydata_remote   inherit_asterix inherit_mydata
-=============================== =========================================================
+the most general first (from the default profile), followed by descend
 
 
-Backup mydata on a remote repository and list all snapshots on that repository:
 
-::
+Order of execution
+------------------
 
-  restaround mydata_remote backup
-  restaround remote snapshots
+Profiles are used top-down where top is the ``default`` profile and down is
+the profile passed on the command line. Command line arguments are applied last.
+
+Multiple ``inherit`` command files in a profile are executed in alphabetical order.
+
+TODO:
+
+When loading a profile, the ``no_`` files are executed last. As as example, you can
+do pre and no_pre_cache where pre mounts an external USB drive. So only for
+the ``cache`` command, the USB drive will not be mounted.
+
+Until this is implemented, you can do that with inheritance.
 
 
 

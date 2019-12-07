@@ -47,7 +47,7 @@ class Flag:
         if self.values is None:
             self.values = other.values
         elif isinstance(other.values, list):
-            self.values.extend(other.values)
+            self.values = other.values + self.values
         else:
             self.values = other.values
         return self
