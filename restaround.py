@@ -36,6 +36,7 @@ class Flag:
     index = 0
     nargs = None
     action = None
+    multi = False
 
     def __init__(self):
         self.values = None
@@ -71,10 +72,10 @@ class Flag:
         if self.remove and flag_name in profile.flags:
             del profile.flags[flag_name]
             return
-        if flag_name in profile.flags:
-            profile.flags[flag_name] += self
-        else:
+        if flag_name not in profile.flags:
             profile.flags[flag_name] = self
+        elif self.multi:
+            profile.flags[flag_name] += self
 
     def __str__(self):
         return ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
@@ -101,6 +102,7 @@ class ListFlag(Flag):
     """The flag is repeated for every line in the config file."""
 
     action = 'append'
+    multi = True
 
 
 class FileFlag(ListFlag):
@@ -128,14 +130,16 @@ class ScriptFlag(Flag):
         """Not a real argument."""
 
 
-class Add(Flag): pass
+class Add(Flag):
+    multi = True
+
 class Exclude_If_Present(ListFlag): pass
 class Exclude(ListFlag): pass
 class Files_From(ListFlag): pass
 class Group_By(Flag): pass
 class Host(Flag): pass
-class IExclude(Flag): pass
-class IInclude(Flag): pass
+class IExclude(ListFlag): pass
+class IInclude(ListFlag): pass
 class Include(ListFlag): pass
 
 class Inherit(ListFlag):
@@ -178,7 +182,9 @@ class Stdin_Filename(Flag): pass
 class Tag(ListFlag): pass
 class Target(Flag): pass
 class Time(Flag): pass
-class Tls_Client_Cert(Flag): pass
+class Tls_Client_Cert(FileFlag):
+    multi = False
+
 class Verbose(Flag): pass
 
 class Allow_Other(BinaryFlag): pass
@@ -215,10 +221,15 @@ class Verify(BinaryFlag): pass
 class With_Atime(BinaryFlag): pass
 class With_Cache(BinaryFlag): pass
 
-class Cacert(FileFlag): pass
-class Cache_Dir(FileFlag): pass
+class Cacert(FileFlag):
+    multi = False
+
+class Cache_Dir(FileFlag):
+    multi = False
+
 class Exclude_File(FileFlag): pass
-class Password_File(FileFlag): pass
+class Password_File(FileFlag):
+    multi = False
 
 class Mountpoint(PositionalFlag): pass
 class FileDir(PositionalFlag): pass
