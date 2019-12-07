@@ -336,7 +336,7 @@ class Profile:
 
     @classmethod
     def choices(cls):
-        result = ['help', ]
+        result = ['help', 'selftest']
         for basedir in (os.path.expanduser('~/.config'), '/etc'):
             dirname = os.path.join(basedir, 'restaround')
             if os.path.isdir(dirname):
@@ -498,85 +498,16 @@ class CmdTag(Command):
 class CmdUnlock(Command):
     accepts_flags = (Remove_All, )
 
+class CmdSelftest(Command):
 
-class Main:
-
-    commands = dict()
-    flags = dict()
-    command = None
-
-    def __init__(self):
-        Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
-        Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
-                      if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
-        if sys.argv[1] in ('-s', '--selftest'):
-            self.restic_command_check()
-            return
-
-        parser = self.build_parser()
-        options = parser.parse_args()
-        Main.command = options.subparser_name
-        options.profile = options.profile[0]
-        if options.profile == 'help':
-            if options.subparser_name is None:
-                parser.print_help()
-            else:
-                Command.subparsers._name_parser_map[  # pylint: disable=protected-access
-                    Main.commands[options.subparser_name].restic_name()].print_help()
-        else:
-            profile = Profile(options)
-            Main.commands[Main.command].__class__().run(
-                profile, options)
-
-    @staticmethod
-    def build_parser():
-        parser = argparse.ArgumentParser(description="""
-          Makes using restic simpler with the help of profiles. Profile 'default' is
-          always used.
-          """, usage='restaround [-h] [-n] profile command [restic arguments]')
-        parser.add_argument(
-            '-n', '--dry-run', help="""Only show the restic command to be executed""",
-            action='store_true', default=False)
-        parser.add_argument(
-            '--selftest', help="""Do some internal tests.""",
-            action='store_true', default=False)
-        parser.add_argument(
-            'profile', nargs=1, choices=Profile.choices(), help="""
-            Use PROFILE. A relative name is first looked for
-            in ~/.config/restaround/, then in /etc/restaround/""")
-        Command.subparsers = parser.add_subparsers(dest='subparser_name')
-        for _ in Main.commands.values():
-            _.add_subparser()
-
-        try:
-            argcomplete.autocomplete(parser)
-        except NameError:
-            pass
-        return parser
-
-    @staticmethod
-    def find_classes(baseclass):
-        result = list()
-        for glob in globals().values():
-            if hasattr(glob, "__mro__"):
-                if glob.__mro__[-2] == baseclass and len(glob.__mro__) > 2:
-                    try:
-                        instance = glob()
-                    except Exception:
-                        print('cannot instantiate %s' % glob.__name__)
-                        raise
-                    result.append(instance)
-        return result
-
-    @staticmethod
-    def restic_command_check():
+    def run(self, profile, options):
         """Check if we support all restic commands."""
         will_not_implement_command = (
             'help', 'generate', 'key', 'migrate', 'self-update', 'version')
         will_not_implement_flags = {
             'option', 'help', 'inherit', 'mountpoint', 'pattern',
             'pre', 'post', 'direct', 'snapshotid', 'filedir', 'objects'}
-        commands = Main.parse_general_help()
+        commands = self.parse_general_help()
         for command in commands:
             if command in will_not_implement_command:
                 continue
@@ -586,7 +517,7 @@ class Main:
             restic_flags = set(Command.accepts_flags)
             restic_flags |= set(Main.commands[command].accepts_flags)
             restic_flags = {x.restic_name() for x in restic_flags}
-            flags_in_help = Main.parse_command_help(command)
+            flags_in_help = self.parse_command_help(command)
             for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
                 print('WARN: restic {} --{} is not implemented'.format(command, unimplemented))
             for too_much in restic_flags - flags_in_help - will_not_implement_flags:
@@ -630,5 +561,70 @@ class Main:
                 flag = _.split('--')[1].split(' ')[0]
                 flags_in_help.add(flag)
         return flags_in_help
+
+class Main:
+
+    commands = dict()
+    flags = dict()
+    command = None
+
+    def __init__(self):
+        Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
+        Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
+                      if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
+
+        parser = self.build_parser()
+        options = parser.parse_args()
+        Main.command = options.subparser_name
+        options.profile = options.profile[0]
+        if options.profile == 'help':
+            if options.subparser_name is None:
+                parser.print_help()
+            else:
+                Command.subparsers._name_parser_map[  # pylint: disable=protected-access
+                    Main.commands[options.subparser_name].restic_name()].print_help()
+        elif options.profile == 'selftest':
+            Main.commands['selftest'].__class__().run(None, options)
+        else:
+            profile = Profile(options)
+            Main.commands[Main.command].__class__().run(
+                profile, options)
+
+    @staticmethod
+    def build_parser():
+        parser = argparse.ArgumentParser(description="""
+          Makes using restic simpler with the help of profiles. Profile 'default' is
+          always used.
+          """, usage='restaround [-h] [-n] profile command [restic arguments]')
+        parser.add_argument(
+            '-n', '--dry-run', help="""Only show the restic command to be executed""",
+            action='store_true', default=False)
+        parser.add_argument(
+            'profile', nargs=1, choices=Profile.choices(), help="""
+            Use PROFILE. A relative name is first looked for
+            in ~/.config/restaround/, then in /etc/restaround/""")
+        Command.subparsers = parser.add_subparsers(dest='subparser_name')
+        for _ in Main.commands.values():
+            _.add_subparser()
+
+        try:
+            argcomplete.autocomplete(parser)
+        except NameError:
+            pass
+        return parser
+
+    @staticmethod
+    def find_classes(baseclass):
+        result = list()
+        for glob in globals().values():
+            if hasattr(glob, "__mro__"):
+                if glob.__mro__[-2] == baseclass and len(glob.__mro__) > 2:
+                    try:
+                        instance = glob()
+                    except Exception:
+                        print('cannot instantiate %s' % glob.__name__)
+                        raise
+                    result.append(instance)
+        return result
 
 Main()
