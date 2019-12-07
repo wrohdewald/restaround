@@ -374,12 +374,15 @@ class Command:
 
     subparsers = None
 
+    description = 'For a description see restic help'
+
     def __init__(self):
         self.cmd_parser = None
 
     def add_subparser(self):
         if self.cmd_parser is None:
-            self.cmd_parser = Command.subparsers.add_parser(name=self.restic_name())
+            self.cmd_parser = Command.subparsers.add_parser(
+                name=self.restic_name(), description=self.description)
         self.add_flags()
 
     def add_flags(self):
