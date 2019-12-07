@@ -36,7 +36,6 @@ class Flag:
     index = 0
     nargs = None
     action = None
-    removable = True  # no_command is legal
 
     def __init__(self):
         self.values = None
@@ -66,6 +65,16 @@ class Flag:
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
             '--{}'.format(cls.restic_name()), nargs=cls.nargs, action=cls.action)
+
+    def apply(self, profile):
+        flag_name = self.restic_name()
+        if self.remove and flag_name in profile.flags:
+            del profile.flags[flag_name]
+            return
+        if flag_name in profile.flags:
+            profile.flags[flag_name] += self
+        else:
+            profile.flags[flag_name] = self
 
     def __str__(self):
         return ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
@@ -130,7 +139,13 @@ class IInclude(Flag): pass
 class Include(ListFlag): pass
 
 class Inherit(ListFlag):
-    removable = False  # no_inherit is illegal
+
+    def apply(self, profile):
+        if self.remove:
+            raise Exception('no_{} is not implemented'.format(self.restic_name()))
+        for _ in self.values:
+            profile.inherit(_)
+
 
 class Key_Hint(Flag): pass
 class Keep_Daily(Flag): pass
@@ -253,8 +268,6 @@ class ProfileEntry:
 
         flag_name = self.flag_name
         result = Main.flags[flag_name].__class__()
-        if self.remove and not result.removable:
-            raise Exception('no_{} is not implemented'.format(flag_name))
         result.remove = self.remove
         if not result.remove:
             if isinstance(result, FileFlag):
@@ -348,18 +361,7 @@ class Profile:
     def use_flag(self, flag):
         """Integrate flag into this profile."""
         if flag.__class__ in self.command_accepts():
-            if flag.__class__ is Inherit:
-                for _ in flag.values:
-                    self.inherit(_)
-            else:
-                flag_name = flag.restic_name()
-                if flag.remove and flag_name in self.flags:
-                    del self.flags[flag_name]
-                    return
-                if flag_name in self.flags:
-                    self.flags[flag_name] += flag
-                else:
-                    self.flags[flag_name] = flag
+            flag.apply(self)
 
 
 class Command:
