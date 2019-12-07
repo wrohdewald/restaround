@@ -49,12 +49,20 @@ Every profile is defined within its own directory. They are searched first
 in `~/.config/restaround` and then in `/etc/restaround`. If the same profile
 is defined in both places: See Inheriting_.
 
+Arguments passed on the command line build another profile to be applied last.
+
+restic_ can get many arguments in environment variables like ``$RESTIC_PASSWORD_FILE``.
+restaround just passes them on.
+
 
 Definition
 ----------
-A profile is implemented as a directory. Most files in that directory correspond to
-a restic_ flag - same spelling. In restic_, however the positional flags sometimes have
-names which do not allow this like restic backup: ``FILE/DIR [FILE/DIR] ...``.
+A profile is implemented as a directory with files for flags. Those can be 
+symbolic links, getting flag values from other profiles.
+
+Most files in that directory have the same spelling as the restic_ flag.
+In restic_, however the positional flags sometimes have names which do not allow
+this like restic backup: ``FILE/DIR [FILE/DIR] ...``.
 In that case, say ``restaround help backup`` to see the name restaround wants, in this case ``filedir``.
 
 The full name can be built as follows:
@@ -68,7 +76,7 @@ the [value] part. There is an alternative.
 - ``command`` is a restic command. The file only applies to that command. If not given, it applies to all commands
 - ``no`` will disable something defined in the inherited profiles
 - ``flag`` is a restic flag like ``with-atime``. Special flags are ``inherit``, ``pre`` and ``post``
-- ``value`` is the value for a flag likei in ``repo=value``
+- ``value`` is the value for a flag like in ``repo=value``
 - ``more values`` the flag will be repeated for all values
 
 restaround knows which restic commands know which flags, it will only
@@ -89,39 +97,30 @@ A profile directory might contain files like
 Some restic_ flags can be repeated like --tag:
 tag can be a file with one or several lines. Each line is extended into --tag linecontent.
 
-The restic_ flags cacert, cachedir, exclude-file, include-file, password-file are special:
-The corresponding file holds the content, so exclude-file extends to --exclude-file=profile/exclude-file
-Of course symbolic links are allowed. So cacert may be a symbolic link to the certification file.
+The restic_ flags ``cacert``, ``cachedir``, ``exclude-file``, ``include-file``, ``password-file`` are special:
+The corresponding file holds the content, so ``exclude-file`` extends to ``--exclude-file=profile/exclude-file``.
+As you already know, symbolic links are allowed. So ``cacert`` may be a symbolic link to the certification file.
 
 For flags with just one argument like --repo create profile/repo with one line.
 
-The alternative form flag_value1_value2_value3 is treated like a file with 3 lines.
-So 'exclude_a_b_dirc' would extend into --exclude a --exclude b --exclude dirc
+The alternative form ``flag_value1_value2_value3`` is treated like a file with 3 lines.
+So ``exclude_a_b_dirc`` would extend into ``--exclude a --exclude b --exclude dirc``
 Such a file must be empty. Of course this form can only be used if the resulting file name
 is legal for the file system and if no part contains an underline.
 
-`tag` in restic_ is used as both a command and as an argument, but this should pose no problem.
+``tag`` in restic_ is used as both a command and as an argument, but this should pose no problem.
 
-tag_tag is the "tag" flag applied only to command "tag"
-tag_taga  is the "tag" flag applied to all commands as --tag taga
+``tag_tag`` is the "tag" flag applied only to command "tag"
+``tag_taga``  is the "tag" flag applied to all commands as ``--tag taga``
 
-If you really want to do --tag=tag, you can define a file named tag (or tag_tag) with
+If you really want to do ``--tag=tag``, you can define a file named ``tag`` (or ``tag_tag``) with
 one line "tag".
-
-
-Special flags
--------------
-
-In addition to the restic_ flags, there are the special flags ``inherit``, see
-Inheriting_, and ``pre`` / ``post``, see `Pre- and Postscripts`_.
-
 
 
 Inheriting
 ----------
 
-You can always use symbolic links for all files pointing to another profile. But there is
-another way: The special flag ``inherit``. It can be defined just like a normal flag but
+The special flag ``inherit`` can be defined just like a normal flag but
 it will be executed by restaround instead of passing it to restic. So you can use
 
 - ``--inherit=remote``
@@ -175,7 +174,7 @@ not to define endless loops.
 
 
 Examples
---------
+========
 
 =========================  ==============================================================
 file name                  meaning
@@ -185,9 +184,6 @@ repo                       --repo REPONAME where REPONAME stands on the first li
 restore_no_tag             removes --tag if it was defined in the default profile
 =========================  ==============================================================
 
-
-inherit
--------
 
 Define separate profiles for the source and the repository and then combine them:
 
@@ -201,6 +197,7 @@ Directory                       Files
 /etc/restaround/mydata_local    inherit_local inherit_mydata
 /etc/restaround/mydata_remote   inherit_remote inherit_mydata
 =============================== =========================================================
+
 
 Backup mydata on a remote repository and list all snapshots on that repository:
 
