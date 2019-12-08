@@ -165,7 +165,7 @@ Multiple ``inherit`` command files in a profile are executed in alphabetical ord
 TODO:
 
 When loading a profile, the ``no_`` files are executed last. As as example, you can
-do pre and no_pre_cache where pre mounts an external USB drive. So only for
+define ``pre`` and ``no_pre_cache`` where pre mounts an external USB drive. So for
 the ``cache`` command, the USB drive will not be mounted.
 
 Until this is implemented, you can do that with inheritance.
@@ -287,7 +287,6 @@ Simply place the file `restaround` in `/usr/local/bin`
 TODO
 ====
 - pip install restaround
-- check should exit 1 for failure, restic does not
 - loading profile: do _no_ last. So, for example, I can do pre and no_pre_cache where pre mounts an external USB drive. OTOH I can already do that with inheritance.
 - a profile may have filedir and backup_filedir. The general one must come first. Right now, the order is undefined.
 

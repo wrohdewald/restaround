@@ -631,6 +631,7 @@ class CmdSelftest(Command):
 
     def run(self, profile, options):
         """Check if we support all restic commands."""
+        returncode = 0
         will_not_implement_command = (
             'help', 'generate', 'key', 'migrate', 'self-update', 'version')
         will_not_implement_flags = {
@@ -642,6 +643,7 @@ class CmdSelftest(Command):
                 continue
             if command not in Main.commands:
                 logging.warning('restic %s is not supported', command)
+                returncode += 1
                 continue
             restic_flags = set(Command.accepts_flags)
             restic_flags |= set(Main.commands[command].accepts_flags)
@@ -649,8 +651,11 @@ class CmdSelftest(Command):
             flags_in_help = self.parse_command_help(command)
             for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
                 logging.warning('restic %s --%s is not implemented', command, unimplemented)
+                returncode += 1
             for too_much in restic_flags - flags_in_help - will_not_implement_flags:
                 logging.warning('flag %s is not supported by restic', too_much)
+                returncode += 1
+        return returncode
 
     @staticmethod
     def parse_general_help():
@@ -717,11 +722,15 @@ class Main:
             else:
                 Command.subparsers._name_parser_map[  # pylint: disable=protected-access
                     Main.commands[options.subparser_name].restic_name()].print_help()
+            returncode = 0
         elif options.profile == 'selftest':
-            Main.commands['selftest'].__class__().run(None, options)
+            returncode = Main.commands['selftest'].__class__().run(None, options)
         else:
             profile = Profile(options)
-            Main.commands[Main.command].__class__().run(profile, options)
+            returncode = Main.commands[Main.command].__class__().run(profile, options)
+        if returncode and returncode % 256 == 0:
+            returncode -= 1
+        sys.exit(returncode % 256)
 
     @staticmethod
     def build_parser():
