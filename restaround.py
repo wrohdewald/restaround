@@ -69,7 +69,7 @@ class Flag:
         command.cmd_parser.add_argument(
             '--{}'.format(cls.restic_name()), nargs=cls.nargs, action=cls.action)
 
-    def apply(self, profile):
+    def apply_to(self, profile):
         flag_name = self.restic_name()
         if self.remove and flag_name in profile.flags:
             del profile.flags[flag_name]
@@ -145,7 +145,7 @@ class Include(ListFlag): pass
 
 class Inherit(ListFlag):
 
-    def apply(self, profile):
+    def apply_to(self, profile):
         if self.remove:
             logging.error('no_%s is not implemented', self.restic_name())
             sys.exit(2)
@@ -389,7 +389,7 @@ class Profile:
     def use_flag(self, flag):
         """Integrate flag into this profile."""
         if flag.__class__ in self.command_accepts():
-            flag.apply(self)
+            flag.apply_to(self)
 
 
 class Command:
