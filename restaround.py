@@ -71,13 +71,15 @@ class Flag:
 
     def apply_to(self, profile):
         flag_name = self.restic_name()
-        if self.remove and flag_name in profile.flags:
-            del profile.flags[flag_name]
-            return
         if flag_name not in profile.flags:
             profile.flags[flag_name] = self
         elif self.multi:
             profile.flags[flag_name] += self
+
+    def remove_from(self, profile):
+        flag_name = self.restic_name()
+        if flag_name in profile.flags:
+            del profile.flags[flag_name]
 
     def __str__(self):
         return ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
@@ -146,12 +148,12 @@ class Include(ListFlag): pass
 class Inherit(ListFlag):
 
     def apply_to(self, profile):
-        if self.remove:
-            logging.error('no_%s is not implemented', self.restic_name())
-            sys.exit(2)
         for _ in self.values:
             profile.inherit(_)
 
+    def remove_from(self, profile):
+        logging.error('no_%s is not implemented', self.restic_name())
+        sys.exit(2)
 
 class Key_Hint(Flag): pass
 class Keep_Daily(Flag): pass
@@ -389,7 +391,10 @@ class Profile:
     def use_flag(self, flag):
         """Integrate flag into this profile."""
         if flag.__class__ in self.command_accepts():
-            flag.apply_to(self)
+            if flag.remove:
+                flag.remove_from(self)
+            else:
+                flag.apply_to(self)
 
 
 class Command:
