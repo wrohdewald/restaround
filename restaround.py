@@ -348,7 +348,6 @@ class Profile:
         for basedir in ('/etc', os.path.expanduser('~/.config')):
             dirname = os.path.join(basedir, 'restaround', profile_name)
             if os.path.isdir(dirname):
-                print('loading', dirname)
                 for filename in os.listdir(dirname):
                     self.load_from_file(os.path.join(dirname, filename))
 
