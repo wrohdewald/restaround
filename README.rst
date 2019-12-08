@@ -166,6 +166,8 @@ When loading a profile, the ``no_`` files are executed last. As as example, you 
 define ``pre`` and ``no_pre_cache`` where pre mounts an external USB drive. So for
 the ``cache`` command, the USB drive will not be mounted.
 
+If both a general and a command specific flag are defined within a profile, the
+general flag is applied first.
 
 
 Pre- and Postscripts
@@ -283,7 +285,6 @@ Simply place the file `restaround` in `/usr/local/bin`
 TODO
 ====
 - pip install restaround
-- a profile may have filedir and backup_filedir. The general one must come first. Right now, the order is undefined.
 
 .. _restic: https://restic.net
 

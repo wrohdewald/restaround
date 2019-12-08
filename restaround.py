@@ -393,7 +393,8 @@ class Profile:
 
     def inherit(self, profile_name):
         """Inherit settings from other profile."""
-        given = self.scan(profile_name)
+        # command specific flags first
+        given = sorted(self.scan(profile_name), key=lambda x: x.command or '', reverse=True)
         positive = [x for x in given if not x.remove]
         negative = [x for x in given if x.remove]
         for flag in positive:
