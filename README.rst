@@ -186,6 +186,30 @@ restore_no_tag             removes --tag if it was defined in the default profil
 =========================  ==============================================================
 
 
+inherit
+-------
+
+Define separate profiles for the source and the repository and then combine them:
+
+=============================== =========================================================
+Directory                       Files
+=============================== =========================================================
+/etc/restaround/default         exclude-caches mountpoint
+/etc/restaround/local           password-file repo
+/etc/restaround/remote          password-file repo
+/etc/restaround/mydata          exclude-file filedir
+/etc/restaround/mydata_local    inherit_local inherit_mydata
+/etc/restaround/mydata_remote   inherit_remote inherit_mydata
+=============================== =========================================================
+
+Backup mydata on a remote repository and list all snapshots on that repository:
+
+::
+
+  restaround mydata_remote backup
+  restaround remote snapshots
+
+
 
 Installation
 ============
