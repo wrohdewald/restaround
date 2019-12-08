@@ -41,6 +41,7 @@ class Flag:
     multi = False
 
     def __init__(self):
+        self.command = None  # None if the flag applies to all commands
         self.values = None
         self.remove = False
 
@@ -82,7 +83,9 @@ class Flag:
             del profile.flags[flag_name]
 
     def __str__(self):
-        return ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
+        result = str(self.command) + ': '
+        result += ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
+        return result
 
     def __repr__(self):
         return str(self)
@@ -285,6 +288,7 @@ class ProfileEntry:
         flag_name = self.flag_name
         result = Main.flags[flag_name].__class__()
         result.remove = self.remove
+        result.command = self.command
         if not result.remove:
             if isinstance(result, FileFlag):
                 if result.values is None:
