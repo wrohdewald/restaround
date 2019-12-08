@@ -389,12 +389,13 @@ class Profile:
 
     def inherit(self, profile_name):
         """Inherit settings from other profile."""
-        given_flags = self.scan(profile_name)
-        for flag in given_flags:
-            if flag.remove:
-                flag.remove_from(self)
-            else:
-                flag.apply_to(self)
+        given = self.scan(profile_name)
+        positive = [x for x in given if not x.remove]
+        negative = [x for x in given if x.remove]
+        for flag in positive:
+            flag.apply_to(self)
+        for flag in negative:
+            flag.remove_from(self)
 
 
 class Command:
