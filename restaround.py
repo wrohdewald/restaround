@@ -476,6 +476,69 @@ class CmdBackup(Command):
         Stdin_Filename, Tag, Time, With_Atime, FileDir)
 
 
+class CmdCpal(Command):
+
+    description = """Make a copy of the repository. All files will be hard linked.
+    The name of the copy will be that of the repository + 'restaround_cpal'
+
+    Works only on local or mounted file system.
+
+    This can be useful before doing a critical operation you might want to undo.
+    See also rmcpal."""
+
+    @staticmethod
+    def repo(profile):
+        repo_flag = profile.find_flag(Repo)
+        if repo_flag is None:
+            raise Exception('{} needs --repo'.format(Main.command))
+            # TO DO: test
+        return repo_flag.values[0]
+
+    def repo_parent(self, profile):
+        return os.path.normpath(os.path.join(self.repo(profile), '..'))
+
+    def copydir(self, profile):
+        self.check_same_fs(profile)
+        return os.path.join(self.repo_parent(profile), self.repo(profile) + '.restaround_cpal')
+
+    def run_args(self, profile):
+        return ['cp', '-al', self.repo(profile), self.copydir(profile)]
+
+    def check_same_fs(self, profile):
+        repo = self.repo(profile)
+        repo_parent = self.repo_parent(profile)
+        repo_dev = os.stat(repo).st_dev
+        repo_parent_dev = os.stat(repo_parent).st_dev
+        if repo_parent_dev != repo_dev:
+            raise Exception(
+                '{}: {} and {} must be in the same file system'.format(
+                    Main.command, repo, repo_parent))
+
+    def run_command(self, profile):
+        copydir = self.copydir(profile)
+        if os.path.exists(copydir):
+            raise Exception('cpal: {} already exists'.format(copydir))
+        args = self.run_args(profile)
+        print('RUN', ' '.join(args))
+        return call(args)
+
+
+class CmdRmcpal(CmdCpal):
+
+    description = """remove the copy made with cpal. See also cpal."""
+
+    def run_args(self, profile):
+        return ['rm', '-r', self.copydir(profile)]
+
+    def run_command(self, profile):
+        copydir = self.copydir(profile)
+        if not os.path.exists(copydir):
+            raise Exception('rmcpal: {} does not exist'.format(copydir))
+        args = self.run_args(profile)
+        print('RUN', ' '.join(args))
+        return call(args)
+
+
 class CmdCache(Command):
     accepts_flags = (Cleanup, Max_Age, No_Size)
 

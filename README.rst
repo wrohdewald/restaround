@@ -117,6 +117,21 @@ If you really want to do ``--tag=tag``, you can define a file named ``tag`` (or 
 one line "tag".
 
 
+
+Special commands
+----------------
+
+Those commands are executed by restaround. Otherwise their usage is the same
+regarding inheritance and execution of pre/post scripts.
+
+``cpal`` makes a copy of the repository. All files will be hard linked.
+The name of the copy will be that of the repository + 'restaround_cpal'
+This can be useful before doing a critical operation you might want to undo.
+
+``rmcpal`` removes such a copy.
+
+
+
 Inheriting
 ----------
 
@@ -274,8 +289,6 @@ TODO
 - pip install restaround
 - more user friendly error messages
 - check should exit 1 for failure, restic does not
-- restaround cpal will use cp -al and create something like repodir/../repodir.before_prune.YYYY-MM-DDThh:mm:ss
-- restaround rmcpal removes it
 - loading profile: do _no_ last. So, for example, I can do pre and no_pre_cache where pre mounts an external USB drive. OTOH I can already do that with inheritance.
 - a profile may have filedir and backup_filedir. The general one must come first. Right now, the order is undefined.
 
