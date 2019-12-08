@@ -20,6 +20,7 @@
 import os
 import sys
 import argparse
+import logging
 from subprocess import call, run, PIPE
 
 try:
@@ -146,7 +147,8 @@ class Inherit(ListFlag):
 
     def apply(self, profile):
         if self.remove:
-            raise Exception('no_{} is not implemented'.format(self.restic_name()))
+            logging.error('no_%s is not implemented', self.restic_name())
+            sys.exit(2)
         for _ in self.values:
             profile.inherit(_)
 
@@ -258,7 +260,8 @@ class ProfileEntry:
         self.values = fparts[1:]
         if self.values:
             if os.stat(self.filepath).st_size:
-                raise Exception("{}: file must be empty".format(self.filepath))
+                logging.error("%s: file must be empty", self.filepath)
+                sys.exit(1)
         else:
             self.values = self.__file_lines()
 
@@ -293,9 +296,10 @@ class ProfileEntry:
                 result.values = self.values + result.values
             else:
                 if result.values or len(self.values) > 1:
-                    raise Exception(
-                        'must define only one value for {}: {}'.format(result, self))
-                result.values = self.values
+                    logging.warning(
+                        'ignoring line: must define only one value for %s: %s', result, self)
+                else:
+                    result.values = self.values
         return result
 
     def __str__(self):
@@ -422,8 +426,8 @@ class Command:
     def run_scripts(scripts, env):
         for script in scripts:
             if not os.path.exists(script):
-                raise Exception('{} does not exist'.format(script))
-            print('RUN', script)
+                logging.warning('%s does not exist', script)
+            logging.info('RUN %s', script)
             process = run(script, env=env, stdout=PIPE)
             if exit_on_error and process.returncode:
                 sys.exit(process.returncode)
@@ -443,7 +447,7 @@ class Command:
 
     def run(self, profile, options):
         if options.dry_run:
-            print('RUN', ' '.join(self.run_args(profile)))
+            logging.info('RUN %s', ' '.join(self.run_args(profile)))
             return 0
         env = os.environ.copy()
         for pre_flag in profile.find_flags(Pre):
@@ -456,7 +460,7 @@ class Command:
 
     def run_command(self, profile):
         args = self.run_args(profile)
-        print('RUN', ' '.join(args))
+        logging.info('RUN %s', ' '.join(args))
         return call(args)
 
     @classmethod
@@ -490,8 +494,8 @@ class CmdCpal(Command):
     def repo(profile):
         repo_flag = profile.find_flag(Repo)
         if repo_flag is None:
-            raise Exception('{} needs --repo'.format(Main.command))
-            # TO DO: test
+            logging.error('%s needs --repo', Main.command)
+            sys.exit(2)
         return repo_flag.values[0]
 
     def repo_parent(self, profile):
@@ -510,16 +514,18 @@ class CmdCpal(Command):
         repo_dev = os.stat(repo).st_dev
         repo_parent_dev = os.stat(repo_parent).st_dev
         if repo_parent_dev != repo_dev:
-            raise Exception(
-                '{}: {} and {} must be in the same file system'.format(
-                    Main.command, repo, repo_parent))
+            logging.error(
+                '%s: %s and %s must be in the same file system',
+                Main.command, repo, repo_parent)
+            sys.exit(1)
 
     def run_command(self, profile):
         copydir = self.copydir(profile)
         if os.path.exists(copydir):
-            raise Exception('cpal: {} already exists'.format(copydir))
+            logging.error('cpal: %s already exists', copydir)
+            sys.exit(1)
         args = self.run_args(profile)
-        print('RUN', ' '.join(args))
+        logging.info('RUN %s', ' '.join(args))
         return call(args)
 
 
@@ -533,9 +539,10 @@ class CmdRmcpal(CmdCpal):
     def run_command(self, profile):
         copydir = self.copydir(profile)
         if not os.path.exists(copydir):
-            raise Exception('rmcpal: {} does not exist'.format(copydir))
+            logging.error('rmcpal: %s does not exist', copydir)
+            sys.exit(1)
         args = self.run_args(profile)
-        print('RUN', ' '.join(args))
+        logging.info('RUN %s', ' '.join(args))
         return call(args)
 
 
@@ -634,16 +641,16 @@ class CmdSelftest(Command):
             if command in will_not_implement_command:
                 continue
             if command not in Main.commands:
-                print('restic {} is not supported'.format(command))
+                logging.warning('restic %s is not supported', command)
                 continue
             restic_flags = set(Command.accepts_flags)
             restic_flags |= set(Main.commands[command].accepts_flags)
             restic_flags = {x.restic_name() for x in restic_flags}
             flags_in_help = self.parse_command_help(command)
             for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
-                print('WARN: restic {} --{} is not implemented'.format(command, unimplemented))
+                logging.warning('restic %s --%s is not implemented', command, unimplemented)
             for too_much in restic_flags - flags_in_help - will_not_implement_flags:
-                print('WARN: flag {} is not supported by restic'.format(too_much))
+                logging.warning('flag %s is not supported by restic', too_much)
 
     @staticmethod
     def parse_general_help():
@@ -697,6 +704,11 @@ class Main:
 
         parser = self.build_parser()
         options = parser.parse_args()
+        if options.dry_run:
+            if options.loglevel != 'debug':
+                options.loglevel = 'info'
+        logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
+        logging.getLogger().setLevel(options.loglevel.upper())
         Main.command = options.subparser_name
         options.profile = options.profile[0]
         if options.profile == 'help':
@@ -721,6 +733,9 @@ class Main:
             '-n', '--dry-run', help="""Only show the restic command to be executed""",
             action='store_true', default=False)
         parser.add_argument(
+            '-l', '--loglevel', help='set the loglevel only for restaround, not for restic',
+            choices=('error', 'warning', 'info', 'debug'), default='info')
+        parser.add_argument(
             'profile', nargs=1, choices=Profile.choices(), help="""
             Use PROFILE. A relative name is first looked for
             in ~/.config/restaround/, then in /etc/restaround/""")
@@ -743,7 +758,7 @@ class Main:
                     try:
                         instance = glob()
                     except Exception:
-                        print('cannot instantiate %s' % glob.__name__)
+                        logging.error('cannot instantiate %s', glob.__name__)
                         raise
                     result.append(instance)
         return result

@@ -287,7 +287,6 @@ Simply place the file `restaround` in `/usr/local/bin`
 TODO
 ====
 - pip install restaround
-- more user friendly error messages
 - check should exit 1 for failure, restic does not
 - loading profile: do _no_ last. So, for example, I can do pre and no_pre_cache where pre mounts an external USB drive. OTOH I can already do that with inheritance.
 - a profile may have filedir and backup_filedir. The general one must come first. Right now, the order is undefined.
