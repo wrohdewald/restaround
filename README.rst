@@ -160,21 +160,37 @@ Until this is implemented, you can do that with inheritance.
 Pre- and Postscripts
 --------------------
 
-To be implemented.
-
-The special flag ``pre`` defines a script to be executed before the restic_ command. If the
-exit code is not 0, restaround aborts.
+The special flag ``pre`` defines a script to be executed before the restic_ command.
 
 The special flag ``post`` defines a script to be executed after the restic_ command. It
 gets the exit code of the restic_ command in the shell variable ``RESTIC_RESULT``.
 
-This also allows defining chains like backup, check, forget, prune. Just be careful
-not to define endless loops.
+Those flags can be defined analog to ``cacert``, see above.
+
+Just like with any flag, inheritance means that several ``pre`` or ``post`` scripts might be 
+defined. They are executed in the order as defined for normal flags: ``default``
+profile first, command line arguments last. As soon as an exit code from a ``pre`` script
+is not 0, restaround aborts with that exit code. This is not true for ``post`` scripts:
+they are all executed.
+
+Scripts can pass environment variables to the next script. Because there is no
+way known to me how to do that on a non linux system, they do that like this:
+
+``echo "VARNAME=VALUE"``
+
+Everything a script writes to stdout must look like that. You must suppress other
+output to stdout.
+
+Those scripts also allows setting up chains like backup, check, forget, prune.
+Just be careful not to go into endless loops.
 
 
 
 Examples
 ========
+
+Directory structure
+-------------------
 
 =========================  ==============================================================
 file name                  meaning
@@ -207,6 +223,45 @@ Backup mydata on a remote repository and list all snapshots on that repository:
   restaround remote snapshots
 
 
+pre/post for USB disk
+---------------------
+pre:
+
+::
+
+  #!/bin/bash
+  mount | fgrep 'on /backdisk3 ' >/dev/null
+  if test $? -eq 0
+  then
+        echo DISK3_WAS_MOUNTED=1
+  else
+        echo DISK3_WAS_MOUNTED=0
+        mount /backdisk3 >/dev/null
+  fi
+
+post:
+
+::
+
+  #!/bin/bash
+  test $DISK3_WAS_MOUNTED -eq 0 && umount /backdisk3
+
+
+Show diff after backup
+----------------------
+This expects at least two snaphots in the repository. Better would be to
+check whether $snap2 really holds exactly 2 values.
+
+backup_post:
+
+::
+
+  #!/bin/bash
+
+  snap2=$(restaround --loglevel error "$RESTAROUND_PROFILE" snapshots --json | jq -r '.[-2:][].id')
+
+  restaround "$RESTAROUND_PROFILE" diff $snap2 >&2
+
 
 Installation
 ============
@@ -218,11 +273,11 @@ TODO
 ====
 - pip install restaround
 - more user friendly error messages
-- pre and post scripts
 - check should exit 1 for failure, restic does not
 - restaround cpal will use cp -al and create something like repodir/../repodir.before_prune.YYYY-MM-DDThh:mm:ss
 - restaround rmcpal removes it
-
+- loading profile: do _no_ last. So, for example, I can do pre and no_pre_cache where pre mounts an external USB drive. OTOH I can already do that with inheritance.
+- a profile may have filedir and backup_filedir. The general one must come first. Right now, the order is undefined.
 
 .. _restic: https://restic.net
 

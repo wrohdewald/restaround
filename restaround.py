@@ -18,8 +18,9 @@
 # pylint: disable=missing-docstring, multiple-statements, invalid-name
 
 import os
+import sys
 import argparse
-from subprocess import call, run
+from subprocess import call, run, PIPE
 
 try:
     import argcomplete
@@ -123,11 +124,10 @@ class PositionalFlag(ListFlag):
         command.cmd_parser.add_argument(cls.restic_name(), nargs=cls.nargs)
 
 
-class ScriptFlag(Flag):
+class ScriptFlag(FileFlag):
 
-    @classmethod
-    def add_as_argument_for(cls, command):
-        """Not a real argument."""
+    def args(self):
+        return []
 
 
 class Add(Flag):
@@ -345,6 +345,20 @@ class Profile:
             for _ in flag.args():
                 yield _
 
+    def find_flags(self, flag_class):
+        result = []
+        for flag in self.flags.values():
+            if flag.__class__ is flag_class:
+                result.append(flag)
+        return result
+
+    def find_flag(self, flag_class):
+        flags = self.find_flags(flag_class)
+        if flags:
+            assert len(flags) == 1
+            return flags[0]
+        return None
+
     @classmethod
     def choices(cls):
         result = ['help', 'selftest']
@@ -404,12 +418,46 @@ class Command:
         for _ in to_be_added:
             Main.flags[_.restic_name()].add_as_argument_for(self)
 
-    def run(self, profile, options):
+    @staticmethod
+    def run_scripts(scripts, env):
+        for script in scripts:
+            if not os.path.exists(script):
+                raise Exception('{} does not exist'.format(script))
+            print('RUN', script)
+            process = run(script, env=env, stdout=PIPE)
+            if exit_on_error and process.returncode:
+                sys.exit(process.returncode)
+            if process.stdout:
+                for line in process.stdout.split(b'\n'):
+                    if b'=' in line:
+                        parts = line.split(b'=')
+                        env[parts[0]] = parts[1]
+            if process.returncode:
+                sys.exit(process.returncode)
+        return env
+
+    def run_args(self, profile):
         args = ['restic', self.restic_name()]
         args.extend(profile.restic_parameters())
+        return args
+
+    def run(self, profile, options):
+        if options.dry_run:
+            print('RUN', ' '.join(self.run_args(profile)))
+            return 0
+        env = os.environ.copy()
+        for pre_flag in profile.find_flags(Pre):
+            env = self.run_scripts(pre_flag.values, env)
+        returncode = self.run_command(profile)
+        env['RESTIC_EXITCODE'] = str(returncode)
+        for post_flag in profile.find_flags(Post):
+            self.run_scripts(post_flag.values, env)
+        return returncode
+
+    def run_command(self, profile):
+        args = self.run_args(profile)
         print('RUN', ' '.join(args))
-        if not options.dry_run:
-            call(args)
+        return call(args)
 
     @classmethod
     def restic_name(cls):
@@ -598,8 +646,7 @@ class Main:
             Main.commands['selftest'].__class__().run(None, options)
         else:
             profile = Profile(options)
-            Main.commands[Main.command].__class__().run(
-                profile, options)
+            Main.commands[Main.command].__class__().run(profile, options)
 
     @staticmethod
     def build_parser():
