@@ -365,6 +365,19 @@ class Profile:
             return flags[0]
         return None
 
+    def scan(self, profile_name):
+        """"returns an unsorted list of Flag() for all filenames applicable to Main.command"""
+        result = []
+        for basedir in ('/etc', os.path.expanduser('~/.config')):
+            dirname = os.path.join(basedir, 'restaround', profile_name)
+            if os.path.isdir(dirname):
+                for filename in os.listdir(dirname):
+                    flag = ProfileEntry(os.path.join(dirname, filename)).flag()
+                    if flag is not None:
+                        if flag.__class__ in self.command_accepts():
+                            result.append(flag)
+        return result
+
     @classmethod
     def choices(cls):
         result = ['help', 'selftest']
@@ -376,18 +389,12 @@ class Profile:
 
     def inherit(self, profile_name):
         """Inherit settings from other profile."""
-        for basedir in ('/etc', os.path.expanduser('~/.config')):
-            dirname = os.path.join(basedir, 'restaround', profile_name)
-            if os.path.isdir(dirname):
-                for filename in os.listdir(dirname):
-                    filepath = os.path.join(dirname, filename)
-                    flag = ProfileEntry(filepath).flag()
-                    if flag is not None:
-                        if flag.__class__ in self.command_accepts():
-                            if flag.remove:
-                                flag.remove_from(self)
-                            else:
-                                flag.apply_to(self)
+        given_flags = self.scan(profile_name)
+        for flag in given_flags:
+            if flag.remove:
+                flag.remove_from(self)
+            else:
+                flag.apply_to(self)
 
 
 class Command:
