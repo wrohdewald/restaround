@@ -380,17 +380,14 @@ class Profile:
             dirname = os.path.join(basedir, 'restaround', profile_name)
             if os.path.isdir(dirname):
                 for filename in os.listdir(dirname):
-                    self.load_from_file(os.path.join(dirname, filename))
-
-    def load_from_file(self, filepath):
-        """Load Setting from a file."""
-        flag = ProfileEntry(filepath).flag()
-        if flag is not None:
-            if flag.__class__ in self.command_accepts():
-                if flag.remove:
-                    flag.remove_from(self)
-                else:
-                    flag.apply_to(self)
+                    filepath = os.path.join(dirname, filename)
+                    flag = ProfileEntry(filepath).flag()
+                    if flag is not None:
+                        if flag.__class__ in self.command_accepts():
+                            if flag.remove:
+                                flag.remove_from(self)
+                            else:
+                                flag.apply_to(self)
 
 
 class Command:
