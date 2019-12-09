@@ -342,7 +342,7 @@ class Profile:
                         flag.values = opt[flagname]
                     else:
                         flag.values = [opt[flagname]]
-                    self.use_flag(flag)
+                    flag.apply_to(self)
 
     def restic_parameters(self):
         """Return all formatted flags applicable to command."""
@@ -386,15 +386,11 @@ class Profile:
         """Load Setting from a file."""
         flag = ProfileEntry(filepath).flag()
         if flag is not None:
-            self.use_flag(flag)
-
-    def use_flag(self, flag):
-        """Integrate flag into this profile."""
-        if flag.__class__ in self.command_accepts():
-            if flag.remove:
-                flag.remove_from(self)
-            else:
-                flag.apply_to(self)
+            if flag.__class__ in self.command_accepts():
+                if flag.remove:
+                    flag.remove_from(self)
+                else:
+                    flag.apply_to(self)
 
 
 class Command:
