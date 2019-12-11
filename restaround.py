@@ -20,9 +20,12 @@
 import os
 import sys
 from pathlib import Path as PyPath
+import shutil
 import argparse
 import logging
 from subprocess import call, run, PIPE
+import tempfile
+import filecmp
 
 try:
     import argcomplete
@@ -36,6 +39,309 @@ except ImportError:
 # If a profile is found in more than one path, apply them in the order found.
 
 PATHS = (PyPath('/etc'), PyPath.home() / '.config')
+
+class Test_restaround:
+
+    profiles = []
+    tmpdir = None
+    test_env = None
+    repo1 = None
+
+    def setup_method(self):
+        self.tmpdir = PyPath(tempfile.mkdtemp())
+        global PATHS  # pylint: disable=global-statement
+        Main.init_globals()
+        PATHS = (self.tmpdir / 'etc', self.tmpdir / 'user')
+        self.profiles = {}
+        self.test_env = os.environ.copy()
+        self.repo1 = self.tmpdir / 'repösitory 1 €=EUR'
+
+    def teardown_method(self):
+        shutil.rmtree(self.tmpdir)
+        self.profiles = {}
+
+    def define_profile(self, path_idx, name, content):
+        path = PATHS[path_idx] / 'restaround' / name
+        path.mkdir(parents=True)
+        self.profiles[name] = path
+        for key, value in content.items():
+            full_path = path / key
+            if value is None:
+                full_path.touch()
+            else:
+                full_path.write_text(str(value) + '\n')
+                if 'pre' in key.split('_') or 'post' in key.split('_'):
+                    full_path.chmod(0o755)
+        return path
+
+    @staticmethod
+    def compare_history(got_history, expect_hist):
+        assert len(got_history) == len(expect_hist), 'got:%s' % got_history
+        for idx, expect_entry in enumerate(expect_hist):
+            got = got_history[idx]
+            assert expect_entry[0] == got[0], 'RUN command differs'
+            assert expect_entry[1] == got[1], 'exit code differs for {}'.format(got[0])
+            for key, value in expect_entry[2].items():
+                assert value == got[2][key]
+
+    @staticmethod
+    def compare_directories(a, b):
+        cmp = filecmp.dircmp(a, b)
+        assert not cmp.left_only
+        assert not cmp.right_only
+        assert not cmp.diff_files
+
+    def run_test(self, profile, args, expect):
+        Main.run_history = []
+        argv = ['restaround', '--loglevel=debug', profile.name]
+        argv.extend(args)
+        main = Main([str(x) for x in argv])
+        self.compare_history(main.run_history, expect)
+
+    def run_init(self, profile):
+        repo = ProfileEntry(profile / 'repo').flag().values[0]
+        self.run_test(profile, ['init'], [(
+            'RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                repo,
+            ), 0, {}), ])
+        assert (repo / 'locks').is_dir()
+
+    def test_init(self):
+        profile = self.define_profile(1, 'profile with Umläut', {
+            'repo': self.repo1,
+            'password-file': 'secret password'})
+        self.run_init(profile)
+
+    def test_pre_fail(self):
+        profile = self.define_profile(1, 'my_profile', {
+            'repo': self.repo1,
+            'pre': '\n'.join([
+                '#!/bin/bash',
+                'echo "VALA=bcde=f"',
+                'exit 0']),
+            'init_pre': '\n'.join([
+                '#!/bin/bash',
+                'echo "VALB=ccde=f"',
+                'exit 3']),
+            'password-file': 'secret password'})
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(profile / 'pre'), 0, {b'VALA': b'bcde=f'}),
+            ('RUN ' + str(profile / 'init_pre'), 3, {b'VALA': b'bcde=f', b'VALB': b'ccde=f'})])
+
+    def test_pre_post(self):
+        profile = self.define_profile(1, 'my_profile', {
+            'repo': self.repo1,
+            'pre': '\n'.join([
+                '#!/bin/bash',
+                'echo "VALA=bcde=f"',
+                'exit 0']),
+            'init_pre': '\n'.join([
+                '#!/bin/bash',
+                'echo "VALB=ccde=f"',
+                'exit 0']),
+            'post': '\n'.join([
+                '#!/bin/bash',
+                'exit 0']),
+            'password-file': 'secret password'})
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(profile / 'pre'), 0, {b'VALA': b'bcde=f'}),
+            ('RUN ' + str(profile / 'init_pre'), 0, {b'VALA': b'bcde=f', b'VALB': b'ccde=f'}),
+            ('RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {}),
+            ('RUN ' + str(profile / 'post'), 0, {})])
+
+    def test_path(self):
+        profile = self.define_profile(1, 'my_profile', {
+            'repo': self.repo1,
+            'password-file': 'secret password',
+            'path': '/path1\n/path2'})
+        self.run_test(profile, ['init'], [(
+            'RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {}), ])
+        self.run_test(profile, ['snapshots'], [(
+            'RUN restic snapshots --password-file={} --path=/path1 --path=/path2 --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {}), ])
+
+    def test_order(self):
+        self.define_profile(0, 'default', {
+            'verbose': '1',
+            'exclude-caches': None})
+        self.define_profile(1, 'profile repo', {
+            'repo': self.repo1})
+        profile = self.define_profile(1, 'Real profile with Umläut', {
+            'verbose_4': None,
+            'init_verbose_3': None,
+            'inherit_profile repo': None,
+            'password-file': 'secret password'})
+        profile3 = self.define_profile(1, 'level3', {
+            'backup_no_verbose': None,
+            'inherit': 'Real profile with Umläut'})
+        self.run_test(profile, ['init'], [(
+            'RUN restic init --password-file={} --repo={} --verbose=3'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {}), ])
+        self.run_test(profile3, ['backup', PATHS[0]], [(
+            'RUN restic backup --password-file={} --repo={} {}'.format(
+                profile / 'password-file',
+                self.repo1,
+                PATHS[0]), 0, {}), ])
+        self.run_test(profile, ['backup', '--verbose=9', PATHS[0]], [(
+            'RUN restic backup --password-file={} --repo={} --verbose=9 {}'.format(
+                profile / 'password-file',
+                self.repo1,
+                PATHS[0]), 0, {}), ])
+
+    def test_tag(self):
+        profile = self.define_profile(1, 'pr', {
+            'repo': self.repo1,
+            'add_one_two_tag': None,
+            'add': 'four\nfive',
+            'host_mysystem_othersystem': None,
+            'path': '/',
+            'set': 'overwrite',
+            'snapshotid': 'SNID\nID2',
+            'password-file': 'secret password'})
+        self.run_init(profile)
+        self.run_test(profile, ['tag'], [(
+            'RUN restic tag --add=four --add=five --add=one --add=two --add=tag ' \
+            '--host=mysystem --host=othersystem --password-file={} --path=/ --repo={} --set=overwrite SNID ID2'.format(
+                profile / 'password-file', self.repo1), 1, {})])
+
+    def test_backup(self):
+        parent_profile = self.define_profile(1, 'parent', {
+            'repo': self.repo1,
+            'password-file': 'secret password',
+            })
+        profile = self.define_profile(1, 'pr', {
+            'add_one_two_tag': None,
+            'inherit_parent': None,
+            'add': 'four\nfive',
+            'host_mysystem': None,
+            'cache-dir': '/tmp',
+            'limit-upload': 500,
+            'limit-download': 1000,
+            'path': '/',
+            'filedir': PATHS[1],
+            'set': 'overwrite',
+            'snapshotid': 'SNID\nID2',
+            })
+        self.run_init(parent_profile)
+        self.run_test(profile, ['backup'], [(
+            'RUN restic backup ' \
+            '--cache-dir=/tmp --host=mysystem --limit-download=1000 --limit-upload=500 ' \
+            '--password-file={} --repo={} {}'.format(
+                parent_profile / 'password-file',
+                self.repo1,
+                PATHS[1],
+            ), 0, {})])
+
+    def test_snapshots_forget(self):
+        parent_profile = self.define_profile(1, 'parent', {
+            'repo': self.repo1,
+            'filedir': PATHS[1],
+            'password-file': 'secret password'})
+        profile = self.define_profile(1, 'pr', {
+            'inherit_parent': None,
+            'add_one_two_tag': None,
+            'add': 'four\nfive',
+            'keep-last': 5,
+            'keep-hourly': 6,
+            'keep-monthly': 7,
+            'keep-yearly': 8,
+            'keep-within': '1y5m7d2h',
+            'keep-tag_a_b': None,
+            'host_mysystem': None,
+            'tag_a_b_c': None,
+            'compact': None,
+            'group-by': 'paths',
+            'prune': None,
+            'set': 'overwrite',
+            })
+        self.run_init(parent_profile)
+        self.run_test(profile, ['backup'], [(
+            'RUN restic backup ' \
+            '--host=mysystem --password-file={} --repo={} ' \
+            '--tag=a --tag=b --tag=c {}'.format(
+                parent_profile / 'password-file',
+                self.repo1,
+                PATHS[1],
+            ), 0, {})])
+        self.run_test(profile, ['snapshots'], [(
+            'RUN restic snapshots ' \
+            '--group-by=paths ' \
+            '--host=mysystem --password-file={} --repo={} ' \
+            '--tag=a --tag=b --tag=c'.format(
+                parent_profile / 'password-file', self.repo1), 0, {})])
+        self.run_test(profile, ['forget', 'latest'], [(
+            'RUN restic forget ' \
+            '--group-by=paths ' \
+            '--host=mysystem --keep-hourly=6 --keep-last=5 --keep-monthly=7 ' \
+            '--keep-tag=a --keep-tag=b --keep-within=1y5m7d2h --keep-yearly=8 ' \
+            '--password-file={} --repo={} ' \
+            '--tag=a --tag=b --tag=c latest'.format(
+                parent_profile / 'password-file', self.repo1), 0, {})])
+
+    def test_restore(self):
+        target_dir = self.tmpdir / 'restore_target'
+        profile = self.define_profile(1, 'pr', {
+            'repo': self.repo1,
+            'filedir': PATHS[1],
+            'exclude': 'patterna\n**.tmp\n/cache',
+            'password-file': 'secret password',
+            'target': target_dir,
+            })
+        self.run_init(profile)
+        self.run_test(profile, ['backup'], [(
+            'RUN restic backup ' \
+            '--exclude=patterna --exclude=**.tmp --exclude=/cache ' \
+            '--password-file={} --repo={} {}'.format(
+                profile / 'password-file',
+                self.repo1,
+                PATHS[1]), 0, {}), ])
+        self.run_test(profile, ['restore', 'latest'], [(
+            'RUN restic restore ' \
+            '--exclude=patterna --exclude=**.tmp --exclude=/cache ' \
+            '--password-file={} --repo={} --target={} latest'.format(
+                profile / 'password-file',
+                self.repo1, target_dir,
+                ), 0, {}), ])
+        self.compare_directories(PATHS[1], target_dir / PyPath(str(self.tmpdir)[1:]) / 'user')
+
+    def test_cpal(self):
+        # 1. normal, mit rmcpal
+        # 2. repo=sftp....
+        profile = self.define_profile(1, 'pr', {
+            'repo': self.repo1,
+            'filedir': PATHS[1],
+            'password-file': 'secret password',
+            })
+        self.run_init(profile)
+        self.run_test(profile, ['backup'], [(
+            'RUN restic backup ' \
+            '--password-file={} --repo={} {}'.format(
+                profile / 'password-file',
+                self.repo1,
+                PATHS[1]), 0, {}), ])
+
+        cp_path = PyPath(str(self.repo1) + '.restaround_cpal')
+        self.run_test(profile, ['cpal'], [(
+            'RUN cp -al {} {}'.format(
+                self.repo1,
+                cp_path), 0, {}), ])
+        assert cp_path.exists()
+        self.compare_directories(self.repo1, cp_path)
+        self.run_test(profile, ['rmcpal'], [(
+            'RUN rm -r {}'.format(cp_path), 0, {}), ])
+        assert not cp_path.exists()
+
 
 class Flag:
     """
@@ -690,8 +996,15 @@ class CmdUnlock(Command):
 
 class CmdSelftest(Command):
 
+    description = """
+        This executes several tests. It also checks if all commands and possible arguments of the
+        currently installed restic are supported."""
+
     def run(self, profile, options):
         """Check if we support all restic commands."""
+        return self.check_restic() + self.run_pytest()
+
+    def check_restic(self):
         returncode = 0
         will_not_implement_command = (
             'help', 'generate', 'key', 'migrate', 'self-update', 'version')
@@ -717,6 +1030,19 @@ class CmdSelftest(Command):
                 logging.warning('flag %s is not supported by restic', too_much)
                 returncode += 1
         return returncode
+
+    @staticmethod
+    def run_pytest():
+        try:
+            import pytest
+        except ImportError:
+            logging.warning('please install pytest: "pip install -U pytest"')
+            return 1
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = shutil.which('restaround')
+            tmpfile = shutil.copyfile(path, os.path.join(tmpdir, 'restaround.py'))
+            # parallel execution: install pytest-xdist return pytest.main(['-n', '6', '-vv', tmpfile])
+            return pytest.main(['-vv', tmpfile])
 
     @staticmethod
     def parse_general_help():

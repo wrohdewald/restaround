@@ -30,7 +30,7 @@ Usage: restaround [-h] [-n] [-s] profile command [restic arguments]
 
   -n, --dry-run   Only show the restic command to be executed
 
-  -s, --selftest  Check if restaround and restic are compatible
+  -s, --selftest  Check if restaround and restic are compatible. Also executes a test suite.
 
 
 ========================== ==============================================================================================
@@ -305,6 +305,9 @@ If you want bash command line argument completion, put this into your .bashrc:
 or see https://argcomplete.readthedocs.io/en/latest/
 You may have to install a python package. On Debian, it would be ``python3-argcomplete``.
 
+If you want to use ``restaround selftest``, please install pytest, see https://docs.pytest.org:
+  ``pip install -U pytest``
+For parallel test execution see the comment in the source: search for run_pytest.
 
 
 TODO
