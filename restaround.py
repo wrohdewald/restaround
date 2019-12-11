@@ -262,7 +262,8 @@ class ProfileEntry:
         self.remove = False
         fparts = path.parts[-1].split('_')
         for cmd in Main.commands.values():
-            if len(fparts) > 1 and cmd.restic_name() == fparts[0] and fparts[1] in Main.flags:
+            if (len(fparts) > 1 and cmd.restic_name() == fparts[0] and
+                    ((fparts[1] in Main.flags) or (fparts[1] == 'no' and fparts[2] in Main.flags))):
                 self.command = cmd.restic_name()
                 fparts = fparts[1:]  # command split off
                 break
