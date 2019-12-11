@@ -448,7 +448,8 @@ class Command:
         for script in scripts:
             if not script.exists():
                 logging.warning('%s does not exist', script)
-            logging.info('RUN ' + str(script))
+            cmdline = 'RUN ' + str(script)
+            logging.info(cmdline)
             process = run(str(script), env=env, stdout=PIPE)
             if process.stdout:
                 for line in process.stdout.split(b'\n'):
@@ -457,6 +458,7 @@ class Command:
                         key = parts[0]
                         value = b'='.join(parts[1:])
                         env[key] = value
+            Main.run_history.append((cmdline, process.returncode, env))
             if process.returncode:
                 return env, process.returncode
         return env, 0
@@ -483,8 +485,11 @@ class Command:
 
     def run_command(self, profile):
         args = self.run_args(profile)
-        logging.info('RUN %s', ' '.join(str(x) for x in args))
-        return call(args)
+        cmdline = 'RUN %s' % ' '.join(str(x) for x in args)
+        logging.info(cmdline)
+        returncode = call(args)
+        Main.run_history.append((cmdline, returncode, None))
+        return returncode
 
     @classmethod
     def restic_name(cls):
@@ -716,8 +721,10 @@ class Main:
     commands = dict()
     flags = dict()
     command = None
+    run_history = []  # tuple: RUN-Command, returncode, returned variables (by Pre)
 
     def __init__(self, argv):
+        Main.run_history = []
         Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
         Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
                       if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
