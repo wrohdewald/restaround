@@ -155,8 +155,7 @@ class Inherit(ListFlag):
             profile.inherit(_)
 
     def remove_from(self, profile):
-        logging.error('no_%s is not implemented', self.restic_name())
-        sys.exit(2)
+        logging.error('no_%s is not implemented, ignoring', self.restic_name())
 
 class Key_Hint(Flag): pass
 class Keep_Daily(Flag): pass
@@ -265,8 +264,8 @@ class ProfileEntry:
         self.values = fparts[1:]
         if self.values:
             if os.stat(self.path).st_size:
-                logging.error("%s: file must be empty", self.path)
-                sys.exit(1)
+                logging.error("ignoring %s: must be empty", path)
+                self.path = None  # marker for illegal entry
         else:
             self.values = self.__file_lines()
 
@@ -283,6 +282,8 @@ class ProfileEntry:
 
         """
         if self.command is not None and self.command != Main.command:
+            return None
+        if self.path is None:
             return None
 
         flag_name = self.flag_name
@@ -440,16 +441,14 @@ class Command:
                 logging.warning('%s does not exist', script)
             logging.info('RUN %s', script)
             process = run(script, env=env, stdout=PIPE)
-            if exit_on_error and process.returncode:
-                sys.exit(process.returncode)
             if process.stdout:
                 for line in process.stdout.split(b'\n'):
                     if b'=' in line:
                         parts = line.split(b'=')
                         env[parts[0]] = parts[1]
             if process.returncode:
-                sys.exit(process.returncode)
-        return env
+                return env, process.returncode
+        return env, 0
 
     def run_args(self, profile):
         args = ['restic', self.restic_name()]
@@ -462,7 +461,9 @@ class Command:
             return 0
         env = os.environ.copy()
         for pre_flag in profile.find_flags(Pre):
-            env = self.run_scripts(pre_flag.values, env)
+            env, returncode = self.run_scripts(pre_flag.values, env)
+            if returncode:
+                return returncode
         returncode = self.run_command(profile)
         env['RESTIC_EXITCODE'] = str(returncode)
         for post_flag in profile.find_flags(Post):
@@ -506,7 +507,7 @@ class CmdCpal(Command):
         repo_flag = profile.find_flag(Repo)
         if repo_flag is None:
             logging.error('%s needs --repo', Main.command)
-            sys.exit(2)
+            return 2
         return repo_flag.values[0]
 
     def repo_parent(self, profile):
@@ -528,13 +529,14 @@ class CmdCpal(Command):
             logging.error(
                 '%s: %s and %s must be in the same file system',
                 Main.command, repo, repo_parent)
-            sys.exit(1)
+            return 2
+        return 0
 
     def run_command(self, profile):
         copydir = self.copydir(profile)
         if os.path.exists(copydir):
             logging.error('cpal: %s already exists', copydir)
-            sys.exit(1)
+            return 2
         return Command.run_command(self, profile)
 
 
@@ -549,7 +551,7 @@ class CmdRmcpal(CmdCpal):
         copydir = self.copydir(profile)
         if not os.path.exists(copydir):
             logging.error('rmcpal: %s does not exist', copydir)
-            sys.exit(1)
+            return 2
         return Command.run_command(self, profile)
 
 
@@ -709,13 +711,13 @@ class Main:
     flags = dict()
     command = None
 
-    def __init__(self):
+    def __init__(self, argv):
         Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
         Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
                       if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
 
         parser = self.build_parser()
-        options = parser.parse_args()
+        options = parser.parse_args(argv[1:])
         if options.dry_run:
             if options.loglevel != 'debug':
                 options.loglevel = 'info'
@@ -729,15 +731,14 @@ class Main:
             else:
                 Command.subparsers._name_parser_map[  # pylint: disable=protected-access
                     Main.commands[options.subparser_name].restic_name()].print_help()
-            returncode = 0
+            self.returncode = 0
         elif options.profile == 'selftest':
-            returncode = Main.commands['selftest'].__class__().run(None, options)
+            self.returncode = Main.commands['selftest'].__class__().run(None, options)
         else:
             profile = Profile(options)
-            returncode = Main.commands[Main.command].__class__().run(profile, options)
-        if returncode and returncode % 256 == 0:
-            returncode -= 1
-        sys.exit(returncode % 256)
+            self.returncode = Main.commands[Main.command].__class__().run(profile, options)
+        if self.returncode and self.returncode % 256 == 0:
+            self.returncode -= 1
 
     @staticmethod
     def build_parser():
@@ -779,4 +780,6 @@ class Main:
                     result.append(instance)
         return result
 
-Main()
+if __name__ == '__main__':
+    main_instance = Main(sys.argv)
+    sys.exit(main_instance.returncode)
