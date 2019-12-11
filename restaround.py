@@ -248,11 +248,11 @@ class ProfileEntry:
 
     """Extract info from a file in the profile directory."""
 
-    def __init__(self, filepath):
-        self.filepath = filepath
+    def __init__(self, path):
+        self.path = path
         self.command = None
         self.remove = False
-        fparts = os.path.basename(filepath).split('_')
+        fparts = os.path.basename(path).split('_')
         for cmd in Main.commands.values():
             if len(fparts) > 1 and cmd.restic_name() == fparts[0] and fparts[1] in Main.flags:
                 self.command = cmd.restic_name()
@@ -264,8 +264,8 @@ class ProfileEntry:
         self.flag_name = fparts[0]
         self.values = fparts[1:]
         if self.values:
-            if os.stat(self.filepath).st_size:
-                logging.error("%s: file must be empty", self.filepath)
+            if os.stat(self.path).st_size:
+                logging.error("%s: file must be empty", self.path)
                 sys.exit(1)
         else:
             self.values = self.__file_lines()
@@ -273,7 +273,7 @@ class ProfileEntry:
     def __file_lines(self):
         """Return a list of all stripped lines, empty lines exclude.
         Lines starting with # are also excluded."""
-        result = [x.strip() for x in open(self.filepath, encoding='utf-8').readlines()]
+        result = [x.strip() for x in open(self.path, encoding='utf-8').readlines()]
         return [x for x in result if x and not x.startswith('#')]
 
     def flag(self):
@@ -293,7 +293,7 @@ class ProfileEntry:
             if isinstance(result, FileFlag):
                 if result.values is None:
                     result.values = []
-                result.values.insert(0, self.filepath)
+                result.values.insert(0, self.path)
             elif isinstance(result, BinaryFlag):
                 result.values = self.values
             elif isinstance(result, ListFlag):
@@ -312,7 +312,7 @@ class ProfileEntry:
         result = 'Entry('
         if self.command:
             result += 'command=' + self.command + ','
-        result += 'path=' + str(self.filepath) + ','
+        result += 'path=' + str(self.path) + ','
         result += 'values=' + ','.join(str(x) for x in self.values) + ')'
         return result
 
