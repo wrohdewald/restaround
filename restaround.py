@@ -58,7 +58,7 @@ class Flag:
         if self.values is None:
             self.values = other.values
         elif isinstance(other.values, list):
-            self.values = other.values + self.values
+            self.values = self.values + other.values
         else:
             self.values = other.values
         return self
@@ -83,6 +83,8 @@ class Flag:
             profile.flags[flag_name] = self
         elif self.multi:
             profile.flags[flag_name] += self
+        else:
+            profile.flags[flag_name] = self
 
     def remove_from(self, profile):
         flag_name = self.restic_name()
@@ -336,9 +338,9 @@ class Profile:
     def __init__(self, options):
         self.options = options
         self.flags = dict()   # key: restic_name
-        self.use_options()
-        self.inherit(options.profile)
         self.inherit('default')
+        self.inherit(options.profile)
+        self.use_options()
 
     def command_accepts(self):
         """Returns accepted flag classes."""
@@ -404,9 +406,13 @@ class Profile:
     def inherit(self, profile_name):
         """Inherit settings from other profile."""
         # command specific flags first
-        given = sorted(self.scan(profile_name), key=lambda x: x.command or '', reverse=True)
+        given = sorted(self.scan(profile_name), key=lambda x: x.command or '')
+        inherit_flags = [x for x in given if x.__class__ is Inherit]
+        given = [x for x in given if x.__class__ is not Inherit]
         positive = [x for x in given if not x.remove]
         negative = [x for x in given if x.remove]
+        for flag in inherit_flags:
+            flag.apply_to(self)
         for flag in positive:
             flag.apply_to(self)
         for flag in negative:
