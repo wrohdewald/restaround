@@ -6,6 +6,20 @@ restaround is a wrapper around the backup utility restic_ simplifying its use.
 This is done by defining profiles. A profile defines the arguments to be used for restic_.
 Profiles can inherit from others.
 
+Quick start
+===========
+
+Backing up ``/home`` into ``/backup/restic``:
+
+- create directory ``~/.config/restaround/home`` or ``/etc/restaround/home``
+- go into that directory
+- edit new file ``repo``. Content is ``backup/restic``
+- edit new file ``password-file``, put the password into it
+- edit new file ``filedir``. Content is ``/home``
+- ``restaround home init`` will initialize the repository
+- ``restaround home backup`` will backup
+- ``restaround home mount /mnt`` will mount all backups in /mnt
+
 
 Synopsis
 ========
@@ -19,13 +33,13 @@ Usage: restaround [-h] [-n] [-s] profile command [restic arguments]
   -s, --selftest  Check if restaround and restic are compatible
 
 
-========================== =====================================================================================================
-profile                    Use PROFILE. A relative name is first looked for in ~/.config/restaround/, then in /etc/restaround/
--------------------------- -----------------------------------------------------------------------------------------------------
+========================== ==============================================================================================
+profile                    Use profile. It is first looked for in ``~/.config/restaround/``, then in ``/etc/restaround/``
+-------------------------- ----------------------------------------------------------------------------------------------
 command                    the restic command to be executed
--------------------------- -----------------------------------------------------------------------------------------------------
+-------------------------- ----------------------------------------------------------------------------------------------
 restic arguments           any additional arguments for restic_
-========================== =====================================================================================================
+========================== ==============================================================================================
 
 
 
@@ -130,6 +144,10 @@ This can be useful before doing a critical operation you might want to undo.
 
 ``rmcpal`` removes such a copy.
 
+Of course you could simply call ``cp -al`` directly. But using restaround has the
+advantage that it will execute the pre- and postscripts. If the repository must
+first be mounted and the be unmounted, the pre- and postscripts will do that.
+Example: `Automatically mounting and unmounting a USB drive`_
 
 
 Inheriting
@@ -236,8 +254,8 @@ Backup mydata on a remote repository and list all snapshots on that repository:
   restaround remote snapshots
 
 
-pre/post for USB disk
----------------------
+Automatically mounting and unmounting a USB drive
+-------------------------------------------------
 pre:
 
 ::
@@ -278,7 +296,14 @@ backup_post:
 
 Installation
 ============
-Simply place the file `restaround` in `/usr/local/bin`
+
+Simply copy the file ``restaround.py`` to ``/usr/local/bin/restaround``.
+
+If you want bash command line argument completion, put this into your .bashrc:
+  ``eval "$(register-python-argcomplete restaround)"``
+
+or see https://argcomplete.readthedocs.io/en/latest/
+You may have to install a python package. On Debian, it would be ``python3-argcomplete``.
 
 
 
