@@ -535,9 +535,7 @@ class CmdCpal(Command):
         if os.path.exists(copydir):
             logging.error('cpal: %s already exists', copydir)
             sys.exit(1)
-        args = self.run_args(profile)
-        logging.info('RUN %s', ' '.join(args))
-        return call(args)
+        return Command.run_command(self, profile)
 
 
 class CmdRmcpal(CmdCpal):
@@ -552,9 +550,7 @@ class CmdRmcpal(CmdCpal):
         if not os.path.exists(copydir):
             logging.error('rmcpal: %s does not exist', copydir)
             sys.exit(1)
-        args = self.run_args(profile)
-        logging.info('RUN %s', ' '.join(args))
-        return call(args)
+        return Command.run_command(self, profile)
 
 
 class CmdCache(Command):
