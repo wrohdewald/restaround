@@ -19,6 +19,7 @@
 
 import os
 import sys
+from pathlib import Path as PyPath
 import argparse
 import logging
 from subprocess import call, run, PIPE
@@ -29,6 +30,12 @@ try:
 except ImportError:
     pass
 
+
+# PATHS defines directories for looking up profile definitions.
+# This is without the 'restaround' part.
+# If a profile is found in more than one path, apply them in the order found.
+
+PATHS = (PyPath('/etc'), PyPath.home() / '.config')
 
 class Flag:
     """
@@ -251,7 +258,7 @@ class ProfileEntry:
         self.path = path
         self.command = None
         self.remove = False
-        fparts = os.path.basename(path).split('_')
+        fparts = path.parts[-1].split('_')
         for cmd in Main.commands.values():
             if len(fparts) > 1 and cmd.restic_name() == fparts[0] and fparts[1] in Main.flags:
                 self.command = cmd.restic_name()
@@ -263,7 +270,7 @@ class ProfileEntry:
         self.flag_name = fparts[0]
         self.values = fparts[1:]
         if self.values:
-            if os.stat(self.path).st_size:
+            if path.stat().st_size:
                 logging.error("ignoring %s: must be empty", path)
                 self.path = None  # marker for illegal entry
         else:
@@ -272,7 +279,7 @@ class ProfileEntry:
     def __file_lines(self):
         """Return a list of all stripped lines, empty lines exclude.
         Lines starting with # are also excluded."""
-        result = [x.strip() for x in open(self.path, encoding='utf-8').readlines()]
+        result = [x.strip() for x in open(str(self.path), encoding='utf-8').readlines()]
         return [x for x in result if x and not x.startswith('#')]
 
     def flag(self):
@@ -294,6 +301,8 @@ class ProfileEntry:
             if isinstance(result, FileFlag):
                 if result.values is None:
                     result.values = []
+                else:
+                    result.values = [PyPath(x) for x in self.values]
                 result.values.insert(0, self.path)
             elif isinstance(result, BinaryFlag):
                 result.values = self.values
@@ -373,11 +382,11 @@ class Profile:
     def scan(self, profile_name):
         """"returns an unsorted list of Flag() for all filenames applicable to Main.command"""
         result = []
-        for basedir in ('/etc', os.path.expanduser('~/.config')):
-            dirname = os.path.join(basedir, 'restaround', profile_name)
-            if os.path.isdir(dirname):
-                for filename in os.listdir(dirname):
-                    flag = ProfileEntry(os.path.join(dirname, filename)).flag()
+        for basedir in PATHS:
+            profile_dir = basedir / 'restaround' / profile_name
+            if profile_dir.is_dir():
+                for filename in profile_dir.iterdir():
+                    flag = ProfileEntry(profile_dir / filename).flag()
                     if flag is not None:
                         if flag.__class__ in self.command_accepts():
                             result.append(flag)
@@ -386,11 +395,11 @@ class Profile:
     @classmethod
     def choices(cls):
         result = ['help', 'selftest']
-        for basedir in (os.path.expanduser('~/.config'), '/etc'):
-            dirname = os.path.join(basedir, 'restaround')
-            if os.path.isdir(dirname):
-                result.extend(os.listdir(dirname))
-        return sorted(x for x in set(result) if x != 'default')
+        for basedir in PATHS:
+            dirname = basedir / 'restaround'
+            if dirname.is_dir():
+                result.extend(x.name for x in dirname.iterdir())
+        return sorted(str(x) for x in set(result) if str(x) != 'default')
 
     def inherit(self, profile_name):
         """Inherit settings from other profile."""
@@ -437,10 +446,10 @@ class Command:
     @staticmethod
     def run_scripts(scripts, env):
         for script in scripts:
-            if not os.path.exists(script):
+            if not script.exists():
                 logging.warning('%s does not exist', script)
-            logging.info('RUN %s', script)
-            process = run(script, env=env, stdout=PIPE)
+            logging.info('RUN ' + str(script))
+            process = run(str(script), env=env, stdout=PIPE)
             if process.stdout:
                 for line in process.stdout.split(b'\n'):
                     if b'=' in line:
@@ -472,7 +481,7 @@ class Command:
 
     def run_command(self, profile):
         args = self.run_args(profile)
-        logging.info('RUN %s', ' '.join(args))
+        logging.info('RUN %s', ' '.join(str(x) for x in args))
         return call(args)
 
     @classmethod
@@ -510,31 +519,26 @@ class CmdCpal(Command):
             return 2
         return repo_flag.values[0]
 
-    def repo_parent(self, profile):
-        return os.path.normpath(os.path.join(self.repo(profile), '..'))
-
     def copydir(self, profile):
-        self.check_same_fs(profile)
-        return os.path.join(self.repo_parent(profile), self.repo(profile) + '.restaround_cpal')
+        repodir = self.repo(profile)
+        return repodir / '..' / (str(repodir) + '.restaround_cpal')
 
     def run_args(self, profile):
         return ['cp', '-al', self.repo(profile), self.copydir(profile)]
 
     def check_same_fs(self, profile):
         repo = self.repo(profile)
-        repo_parent = self.repo_parent(profile)
-        repo_dev = os.stat(repo).st_dev
-        repo_parent_dev = os.stat(repo_parent).st_dev
-        if repo_parent_dev != repo_dev:
+        if repo.is_mount():
             logging.error(
-                '%s: %s and %s must be in the same file system',
-                Main.command, repo, repo_parent)
+                '%s: %s is a mount point, this is not supported',
+                Main.command, repo)
             return 2
         return 0
 
     def run_command(self, profile):
+        self.check_same_fs(profile)
         copydir = self.copydir(profile)
-        if os.path.exists(copydir):
+        if copydir.exists():
             logging.error('cpal: %s already exists', copydir)
             return 2
         return Command.run_command(self, profile)
@@ -549,7 +553,7 @@ class CmdRmcpal(CmdCpal):
 
     def run_command(self, profile):
         copydir = self.copydir(profile)
-        if not os.path.exists(copydir):
+        if not copydir.exists():
             logging.error('rmcpal: %s does not exist', copydir)
             return 2
         return Command.run_command(self, profile)
