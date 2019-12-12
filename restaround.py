@@ -363,8 +363,8 @@ class Profile:
 
     def restic_parameters(self):
         """Return all formatted flags applicable to command."""
-        for flag in sorted(self.flags.values(), key=lambda x: x.index):
-            assert flag.values is not None
+        for flag in sorted(self.flags.values(), key=lambda x: (x.index, x.restic_name())):
+            assert flag.values is not None, 'Flag {} has values None'.format(flag)
             for _ in flag.args():
                 yield _
 
