@@ -724,11 +724,7 @@ class Main:
     run_history = []  # tuple: RUN-Command, returncode, returned variables (by Pre)
 
     def __init__(self, argv):
-        Main.run_history = []
-        Main.commands = {x.restic_name(): x for x in self.find_classes(Command)}
-        Main.flags = {x.restic_name(): x for x in self.find_classes(Flag)
-                      if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
-
+        self.init_globals()
         parser = self.build_parser()
         options = parser.parse_args(argv[1:])
         if options.dry_run:
@@ -753,6 +749,12 @@ class Main:
         if self.returncode and self.returncode % 256 == 0:
             self.returncode -= 1
 
+    @staticmethod
+    def init_globals():
+        Main.run_history = []
+        Main.commands = {x.restic_name(): x for x in Main.find_classes(Command)}
+        Main.flags = {x.restic_name(): x for x in Main.find_classes(Flag)
+                      if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
     @staticmethod
     def build_parser():
         parser = argparse.ArgumentParser(description="""
