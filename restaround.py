@@ -92,8 +92,13 @@ class Flag:
             del profile.flags[flag_name]
 
     def __str__(self):
-        result = str(self.command) + ': '
-        result += ','.join(self.args()) if self.values else '{}'.format(self.restic_name())
+        result = self.__class__.__name__ + '('
+        if self.command:
+            result += 'command=' + str(self.command)
+            if self.values:
+                result += ': '
+        result += ','.join(str(x) for x in self.values)
+        result += ')'
         return result
 
     def __repr__(self):
