@@ -42,7 +42,6 @@ class Flag:
     There is a Flag class for every restic argument.
     """
 
-    index = 0
     nargs = None
     action = None
     multi = False
@@ -132,7 +131,6 @@ class FileFlag(ListFlag):
 
 class PositionalFlag(ListFlag):
 
-    index = 98
     nargs = '*'
 
     def args(self):
@@ -368,7 +366,7 @@ class Profile:
 
     def restic_parameters(self):
         """Return all formatted flags applicable to command."""
-        for flag in sorted(self.flags.values(), key=lambda x: (x.index, x.restic_name())):
+        for flag in sorted(self.flags.values(), key=lambda x: (isinstance(x, PositionalFlag), x.restic_name())):
             assert flag.values is not None, 'Flag {} has values None'.format(flag)
             for _ in flag.args():
                 yield _
