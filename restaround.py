@@ -43,7 +43,6 @@ class Flag:
     """
 
     nargs = None
-    action = None
     multi = False
 
     def __init__(self):
@@ -74,7 +73,7 @@ class Flag:
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
-            '--{}'.format(cls.restic_name()), nargs=cls.nargs, action=cls.action)
+            '--{}'.format(cls.restic_name()), nargs=cls.nargs)
 
     def apply_to(self, profile):
         flag_name = self.restic_name()
@@ -121,8 +120,13 @@ class BinaryFlag(Flag):
 class ListFlag(Flag):
     """The flag is repeated for every line in the config file."""
 
-    action = 'append'
     multi = True
+
+    @classmethod
+    def add_as_argument_for(cls, command):
+        """Add this flag to the command line parser."""
+        command.cmd_parser.add_argument(
+            '--{}'.format(cls.restic_name()), nargs=cls.nargs, action='append')
 
 
 class FileFlag(ListFlag):
