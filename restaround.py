@@ -40,14 +40,60 @@ PATHS = (PyPath('/etc'), PyPath.home() / '.config')
 class Flag:
     """
     There is a Flag class for every restic argument.
+
+    Attributes:
+        multi: flag can be given several times
+        resolve_content:
+            False: the flag name is the flag value
+            True: the flag name is a file holding a list of flag values
+
+
     """
 
     multi = False
+    resolve_content = True
 
-    def __init__(self):
+    def __init__(self, entry=None):
         self.command = None  # None if the flag applies to all commands
-        self.values = None
+        self.values = []
         self.remove = False
+        if entry is not None:
+            self.add(entry)
+
+    def add(self, entry):
+        assert isinstance(entry, ProfileEntry)
+        assert entry.flag_name == self.restic_name()
+        if entry.remove:
+            self.remove = True
+            return
+        self.command = entry.command
+        self.add_values(entry)
+
+    def add_values(self, entry):
+        values = entry.values
+        if self.resolve_content:
+            if not values:
+                values = self.__file_lines(entry.path)
+            if isinstance(self, BinaryFlag):
+                values = [True]
+        else:
+            if isinstance(self, FileFlag):
+                values = [entry.path]
+        if self.multi:
+            self.values.extend(values)
+        else:
+            if len(self.values) + len(values) > 1:
+                logging.warning(
+                    'ignoring line: must define only one value: %s + %s', self.values, values)
+            else:
+                self.values = values
+
+    @staticmethod
+    def __file_lines(path):
+        """Return a list of all stripped lines, empty lines exclude.
+        Lines starting with # are also excluded."""
+        result = [x.strip() for x in open(str(path), encoding='utf-8').readlines()]
+        return [x for x in result if x and not x.startswith('#')]
 
     def __iadd__(self, other):
         """Combine other values into self."""
@@ -128,8 +174,13 @@ class ListFlag(Flag):
             '--{}'.format(cls.restic_name()), action='append')
 
 
-class FileFlag(ListFlag):
-    """These flags always give file names."""
+class FileFlag(Flag):
+    """Children get PyPath values."""
+    resolve_content = False
+
+    def add_values(self, entry):
+        super().add_values(entry)
+        self.values = [PyPath(x) if not isinstance(x, PyPath) else x for x in self.values]
 
 
 class PositionalFlag(ListFlag):
@@ -145,18 +196,18 @@ class PositionalFlag(ListFlag):
 
 class ScriptFlag(FileFlag):
 
+    multi = True
+
     def args(self):
         return []
 
 
-class Add(Flag):
-    multi = True
-
+class Add(ListFlag): pass
 class Exclude_If_Present(ListFlag): pass
 class Exclude(ListFlag): pass
-class Files_From(ListFlag): pass
+class Files_From(ListFlag): resolve_content = False
 class Group_By(Flag): pass
-class Host(Flag): pass
+class Host(ListFlag): pass
 class IExclude(ListFlag): pass
 class IInclude(ListFlag): pass
 class Include(ListFlag): pass
@@ -186,14 +237,14 @@ class Mode(Flag): pass
 class Newest(Flag): pass
 class Oldest(Flag): pass
 class Parent(Flag): pass
-class Password_Command(Flag): pass
-class Path(Flag): pass
+class Password_Command(FileFlag): pass
+class Path(Flag): multi = True
 class Post(ScriptFlag): pass
 class Pre(ScriptFlag): pass
 class Read_Data_Subset(Flag): pass
 class Remove(Flag): pass
-class Remove_All(Flag): pass
-class Repo(Flag): pass
+class Repo(FileFlag): resolve_content = True
+
 class Set(Flag): pass
 class Snapshot(Flag): pass
 class Snapshot_Template(Flag): pass
@@ -233,6 +284,7 @@ class Prune(BinaryFlag): pass
 class Quiet(BinaryFlag): pass
 class Recursive(BinaryFlag): pass
 class Read_Data(BinaryFlag): pass
+class Remove_All(BinaryFlag): pass
 class Show_Pack_Id(BinaryFlag): pass
 class Stdin(BinaryFlag): pass
 class Tree(BinaryFlag): pass
@@ -242,13 +294,14 @@ class With_Cache(BinaryFlag): pass
 
 class Cacert(FileFlag):
     multi = False
+    resolve_content = True
 
 class Cache_Dir(FileFlag):
     multi = False
+    resolve_content = True
 
 class Exclude_File(FileFlag): pass
-class Password_File(FileFlag):
-    multi = False
+class Password_File(FileFlag): multi = False
 
 class Mountpoint(PositionalFlag): pass
 class FileDir(PositionalFlag): pass
@@ -256,9 +309,10 @@ class SnapshotID(PositionalFlag): pass
 class Objects(PositionalFlag): pass
 class Pattern(PositionalFlag): pass
 
+
 class ProfileEntry:
 
-    """Extract info from a file in the profile directory."""
+    # pylint: disable=too-few-public-methods
 
     def __init__(self, path):
         self.path = path
@@ -276,54 +330,14 @@ class ProfileEntry:
             fparts = fparts[1:]
         self.flag_name = fparts[0]
         self.values = fparts[1:]
-        if self.values:
-            if path.stat().st_size:
-                logging.error("ignoring %s: must be empty", path)
-                self.path = None  # marker for illegal entry
-        else:
-            self.values = self.__file_lines()
-
-    def __file_lines(self):
-        """Return a list of all stripped lines, empty lines exclude.
-        Lines starting with # are also excluded."""
-        result = [x.strip() for x in open(str(self.path), encoding='utf-8').readlines()]
-        return [x for x in result if x and not x.startswith('#')]
+        if self.values and path.stat().st_size:
+            logging.error("ignoring %s: must be empty", path)
+            self.path = None  # marker for illegal entry
 
     def flag(self):
-        """Create a new flag for self.
-
-        If the profile entry does not apply for Main.command, returns None.
-
-        """
         if self.command is not None and self.command != Main.command:
             return None
-        if self.path is None:
-            return None
-
-        flag_name = self.flag_name
-        result = Main.flags[flag_name].__class__()
-        result.remove = self.remove
-        result.command = self.command
-        if not result.remove:
-            if isinstance(result, FileFlag):
-                if result.values is None:
-                    result.values = []
-                else:
-                    result.values = [PyPath(x) for x in self.values]
-                result.values.insert(0, self.path)
-            elif isinstance(result, BinaryFlag):
-                result.values = self.values
-            elif isinstance(result, ListFlag):
-                if result.values is None:
-                    result.values = []
-                result.values = self.values + result.values
-            else:
-                if result.values or len(self.values) > 1:
-                    logging.warning(
-                        'ignoring line: must define only one value for %s: %s', result, self)
-                else:
-                    result.values = self.values
-        return result
+        return Main.flags[self.flag_name].__class__(self)
 
     def __str__(self):
         result = 'Entry('
@@ -357,7 +371,7 @@ class Profile:
         for flag_class in self.command_accepts():
             flagname = flag_class.__name__.lower()
             if flagname in opt:
-                if opt[flagname] is not None:
+                if opt[flagname] is not None and opt[flagname] is not False:
                     flag = flag_class()
                     if isinstance(opt[flagname], list):
                         flag.values = opt[flagname]
