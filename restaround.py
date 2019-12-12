@@ -766,7 +766,7 @@ class Main:
         Main.run_history = []
         Main.commands = {x.restic_name(): x for x in Main.find_classes(Command)}
         Main.flags = {x.restic_name(): x for x in Main.find_classes(Flag)
-                      if x.__class__ not in (ListFlag, FileFlag, BinaryFlag)}
+                      if not x.__class__.__name__.endswith('Flag')}
     @staticmethod
     def build_parser():
         parser = argparse.ArgumentParser(description="""
