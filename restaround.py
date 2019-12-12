@@ -454,7 +454,9 @@ class Command:
                 for line in process.stdout.split(b'\n'):
                     if b'=' in line:
                         parts = line.split(b'=')
-                        env[parts[0]] = parts[1]
+                        key = parts[0]
+                        value = b'='.join(parts[1:])
+                        env[key] = value
             if process.returncode:
                 return env, process.returncode
         return env, 0
