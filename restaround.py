@@ -15,7 +15,7 @@
 
 """
 
-# pylint: disable=missing-docstring, multiple-statements, invalid-name
+# pylint: disable=missing-docstring, multiple-statements, invalid-name, line-too-long, too-many-lines
 
 import os
 import sys
