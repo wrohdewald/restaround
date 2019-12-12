@@ -42,7 +42,6 @@ class Flag:
     There is a Flag class for every restic argument.
     """
 
-    nargs = None
     multi = False
 
     def __init__(self):
@@ -73,7 +72,7 @@ class Flag:
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
-            '--{}'.format(cls.restic_name()), nargs=cls.nargs)
+            '--{}'.format(cls.restic_name()))
 
     def apply_to(self, profile):
         flag_name = self.restic_name()
@@ -126,7 +125,7 @@ class ListFlag(Flag):
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
-            '--{}'.format(cls.restic_name()), nargs=cls.nargs, action='append')
+            '--{}'.format(cls.restic_name()), action='append')
 
 
 class FileFlag(ListFlag):
@@ -135,15 +134,13 @@ class FileFlag(ListFlag):
 
 class PositionalFlag(ListFlag):
 
-    nargs = '*'
-
     def args(self):
         return self.values
 
     @classmethod
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
-        command.cmd_parser.add_argument(cls.restic_name(), nargs=cls.nargs)
+        command.cmd_parser.add_argument(cls.restic_name(), nargs='*')
 
 
 class ScriptFlag(FileFlag):
