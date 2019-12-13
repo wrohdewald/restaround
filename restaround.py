@@ -377,6 +377,7 @@ class Profile:
                         flag.values = opt[flagname]
                     else:
                         flag.values = [opt[flagname]]
+                    logging.debug('option sets %s', flag.args())
                     flag.apply_to(self)
 
     def restic_parameters(self):
@@ -434,8 +435,10 @@ class Profile:
             flag.apply_to(self)
         for flag in positive:
             flag.apply_to(self)
+            logging.debug('%s sets %s', profile_name, ' '.join(flag.args()) if flag.args() else flag.restic_name())
         for flag in negative:
             flag.remove_from(self)
+            logging.debug('%s removes %s', profile_name, flag.restic_name())   # for command if command
 
 
 class Command:
