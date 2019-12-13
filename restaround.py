@@ -194,6 +194,16 @@ class PositionalFlag(ListFlag):
         command.cmd_parser.add_argument(cls.restic_name(), nargs='*')
 
 
+class SinglePositionalFlag(PositionalFlag):
+
+    multi = False
+
+    @classmethod
+    def add_as_argument_for(cls, command):
+        """Add this flag to the command line parser."""
+        command.cmd_parser.add_argument(cls.restic_name(), nargs='?')
+
+
 class ScriptFlag(FileFlag):
 
     multi = True
@@ -305,7 +315,9 @@ class Password_File(FileFlag): multi = False
 
 class Mountpoint(PositionalFlag): pass
 class FileDir(PositionalFlag): pass
+class Dir(PositionalFlag): pass
 class SnapshotID(PositionalFlag): pass
+class SingleSnapshotID(SinglePositionalFlag): pass
 class Objects(PositionalFlag): pass
 class Pattern(PositionalFlag): pass
 
@@ -636,7 +648,7 @@ class CmdList(Command):
 
 
 class CmdLs(Command):
-    accepts_flags = (Host, Long, Path, Recursive, Tag)
+    accepts_flags = (Host, Long, Path, Recursive, Tag, SingleSnapshotID, Dir)
 
 
 class CmdMount(Command):
@@ -683,8 +695,8 @@ class CmdSelftest(Command):
         will_not_implement_command = (
             'help', 'generate', 'key', 'migrate', 'self-update', 'version')
         will_not_implement_flags = {
-            'option', 'help', 'inherit', 'mountpoint', 'pattern',
-            'pre', 'post', 'direct', 'snapshotid', 'filedir', 'objects'}
+            'option', 'help', 'inherit', 'mountpoint', 'pattern', 'dir',
+            'pre', 'post', 'direct', 'snapshotid', 'singlesnapshotid', 'filedir', 'objects'}
         commands = self.parse_general_help()
         for command in commands:
             if command in will_not_implement_command:
