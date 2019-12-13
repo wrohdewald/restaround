@@ -164,7 +164,7 @@ class Test_restaround:
                 self.repo1,
             ), 0, {}), ])
         self.run_test(profile, ['snapshots'], [(
-            'RUN restic snapshots --password-file={} --path=/path1 --path=/path2 --repo={}'.format(
+            'RUN restic snapshots --password-file={} --repo={} --path=/path1 --path=/path2'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {}), ])
@@ -189,12 +189,12 @@ class Test_restaround:
                 self.repo1,
             ), 0, {}), ])
         self.run_test(profile3, ['backup', PATHS[0]], [(
-            'RUN restic backup --password-file={} --repo={} {}'.format(
+            'RUN restic backup --password-file={} --repo={} --exclude-caches {}'.format(
                 profile / 'password-file',
                 self.repo1,
                 PATHS[0]), 0, {}), ])
         self.run_test(profile, ['backup', '--verbose=9', PATHS[0]], [(
-            'RUN restic backup --password-file={} --repo={} --verbose=9 {}'.format(
+            'RUN restic backup --password-file={} --repo={} --verbose=9 --exclude-caches {}'.format(
                 profile / 'password-file',
                 self.repo1,
                 PATHS[0]), 0, {}), ])
@@ -211,8 +211,8 @@ class Test_restaround:
             'password-file': 'secret password'})
         self.run_init(profile)
         self.run_test(profile, ['tag'], [(
-            'RUN restic tag --add=four --add=five --add=one --add=two --add=tag ' \
-            '--host=mysystem --host=othersystem --password-file={} --path=/ --repo={} --set=overwrite SNID ID2'.format(
+            'RUN restic tag --password-file={} --repo={} --add=four --add=five --add=one --add=two --add=tag ' \
+            '--host=mysystem --host=othersystem --path=/ --set=overwrite SNID ID2'.format(
                 profile / 'password-file', self.repo1), 1, {})])
 
     def test_backup(self):
@@ -236,8 +236,8 @@ class Test_restaround:
         self.run_init(parent_profile)
         self.run_test(profile, ['backup'], [(
             'RUN restic backup ' \
-            '--cache-dir=/tmp --host=mysystem --limit-download=1000 --limit-upload=500 ' \
-            '--password-file={} --repo={} {}'.format(
+            '--cache-dir=/tmp --limit-download=1000 --limit-upload=500 ' \
+            '--password-file={} --repo={} --host=mysystem {}'.format(
                 parent_profile / 'password-file',
                 self.repo1,
                 PATHS[1],
@@ -268,25 +268,31 @@ class Test_restaround:
         self.run_init(parent_profile)
         self.run_test(profile, ['backup'], [(
             'RUN restic backup ' \
-            '--host=mysystem --password-file={} --repo={} ' \
-            '--tag=a --tag=b --tag=c {}'.format(
+            '--password-file={} --repo={} ' \
+            '--host=mysystem --tag=a --tag=b --tag=c {}'.format(
                 parent_profile / 'password-file',
                 self.repo1,
                 PATHS[1],
             ), 0, {})])
         self.run_test(profile, ['snapshots'], [(
             'RUN restic snapshots ' \
-            '--group-by=paths ' \
-            '--host=mysystem --password-file={} --repo={} ' \
+            '--password-file={} --repo={} --compact --group-by=paths ' \
+            '--host=mysystem ' \
             '--tag=a --tag=b --tag=c'.format(
+                parent_profile / 'password-file', self.repo1), 0, {})])
+        self.run_test(profile, ['ls', '--recursive', 'latest', '/'], [(
+            'RUN restic ls ' \
+            '--password-file={} --repo={} ' \
+            '--host=mysystem --recursive ' \
+            '--tag=a --tag=b --tag=c latest /'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
         self.run_test(profile, ['forget', 'latest'], [(
             'RUN restic forget ' \
-            '--group-by=paths ' \
+            '--password-file={} --repo={} ' \
+            '--compact --group-by=paths ' \
             '--host=mysystem --keep-hourly=6 --keep-last=5 --keep-monthly=7 ' \
             '--keep-tag=a --keep-tag=b --keep-within=1y5m7d2h --keep-yearly=8 ' \
-            '--password-file={} --repo={} ' \
-            '--tag=a --tag=b --tag=c latest'.format(
+            '--prune --tag=a --tag=b --tag=c latest'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
 
     def test_restore(self):
@@ -301,15 +307,15 @@ class Test_restaround:
         self.run_init(profile)
         self.run_test(profile, ['backup'], [(
             'RUN restic backup ' \
-            '--exclude=patterna --exclude=**.tmp --exclude=/cache ' \
-            '--password-file={} --repo={} {}'.format(
+            '--password-file={} --repo={} ' \
+            '--exclude=patterna --exclude=**.tmp --exclude=/cache {}'.format(
                 profile / 'password-file',
                 self.repo1,
                 PATHS[1]), 0, {}), ])
         self.run_test(profile, ['restore', 'latest'], [(
             'RUN restic restore ' \
-            '--exclude=patterna --exclude=**.tmp --exclude=/cache ' \
-            '--password-file={} --repo={} --target={} latest'.format(
+            '--password-file={} --repo={} ' \
+            '--exclude=patterna --exclude=**.tmp --exclude=/cache --target={} latest'.format(
                 profile / 'password-file',
                 self.repo1, target_dir,
                 ), 0, {}), ])
@@ -681,7 +687,7 @@ class Profile:
 
     def command_accepts(self):
         """Returns accepted flag classes."""
-        return Main.commands[self.options.subparser_name].accepts_flags + Command.accepts_flags
+        return Command.accepts_flags + Main.commands[self.options.subparser_name].accepts_flags
 
     def use_options(self):
         """Use options to set up profile flags."""
@@ -698,9 +704,16 @@ class Profile:
                     logging.debug('option sets %s', flag.args())
                     flag.apply_to(self)
 
+    def sorted_flags(self):
+        """Sort applicable flags to the order of accepts_flags."""
+        result = []
+        for cls in self.command_accepts():
+            result.extend(self.find_flags(cls))
+        return result
+
     def restic_parameters(self):
         """Return all formatted flags applicable to command."""
-        for flag in sorted(self.flags.values(), key=lambda x: (isinstance(x, PositionalFlag), x.restic_name())):
+        for flag in self.sorted_flags():
             assert flag.values is not None, 'Flag {} has values None'.format(flag)
             for _ in flag.args():
                 yield _
@@ -762,10 +775,11 @@ class Profile:
 class Command:
     # Inherit must be first !
     accepts_flags = (
-        Inherit, Pre, Post,
         Cacert, Cache_Dir, Cleanup_Cache,
-        Json, Key_Hint, Limit_Download, Limit_Upload,
-        No_Cache, No_Lock, Password_Command, Password_File,
+        Inherit, Json, Key_Hint, Limit_Download, Limit_Upload,
+        No_Cache, No_Lock,
+        Password_Command, Password_File,
+        Pre, Post,
         Quiet, Repo, Tls_Client_Cert, Verbose)
 
     subparsers = None
@@ -857,6 +871,8 @@ class CmdBackup(Command):
 
 class CmdCpal(Command):
 
+    accepts_flags = ()
+
     description = """Make a copy of the repository. All files will be hard linked.
     The name of the copy will be that of the repository + 'restaround_cpal'
 
@@ -900,6 +916,8 @@ class CmdCpal(Command):
 
 class CmdRmcpal(CmdCpal):
 
+    accepts_flags = ()
+
     description = """remove the copy made with cpal. See also cpal."""
 
     def run_args(self, profile):
@@ -941,14 +959,14 @@ class CmdFind(Command):
 
 class CmdForget(Command):
     accepts_flags = (
-        Path, Keep_Tag, Tag, Host, Keep_Within,
-        Keep_Last, Keep_Hourly, Keep_Daily,
-        Keep_Weekly, Keep_Monthly, Keep_Yearly,
-        Compact, Group_By, Dry_Run, Prune, SnapshotID)
+        Compact, Dry_Run, Group_By, Host,
+        Keep_Daily, Keep_Hourly, Keep_Last, Keep_Monthly,
+        Keep_Tag, Keep_Weekly, Keep_Within, Keep_Yearly,
+        Path, Prune, Tag, SnapshotID)
 
 
-class CmdInit(Command): pass
-
+class CmdInit(Command):
+    accepts_flags = ()
 
 class CmdList(Command):
     accepts_flags = (Objects, )
@@ -965,12 +983,14 @@ class CmdMount(Command):
         Owner_Root, Path, Snapshot_Template,
         Tag, Mountpoint)
 
-class CmdPrune(Command): pass
+class CmdPrune(Command):
+    accepts_flags = ()
 
-class CmdRebuild_Index(Command): pass
+class CmdRebuild_Index(Command):
+    accepts_flags = ()
 
-
-class CmdRecover(Command): pass
+class CmdRecover(Command):
+    accepts_flags = ()
 
 
 class CmdRestore(Command):
