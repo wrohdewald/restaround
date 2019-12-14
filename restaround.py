@@ -297,8 +297,8 @@ class Test_restaround:
             'RUN restic forget ' \
             '--password-file={} --repo={} ' \
             '--compact --group-by=paths ' \
-            '--host=mysystem --keep-hourly=6 --keep-last=5 --keep-monthly=7 ' \
-            '--keep-tag=a --keep-tag=b --keep-within=1y5m7d2h --keep-yearly=8 ' \
+            '--host=mysystem --keep-last=5 --keep-tag=a --keep-tag=b --keep-within=1y5m7d2h ' \
+            '--keep-hourly=6 --keep-monthly=7 --keep-yearly=8 ' \
             '--prune --tag=a --tag=b --tag=c latest'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
 
@@ -967,8 +967,8 @@ class CmdFind(Command):
 class CmdForget(Command):
     accepts_flags = (
         Compact, Dry_Run, Group_By, Host,
-        Keep_Daily, Keep_Hourly, Keep_Last, Keep_Monthly,
-        Keep_Tag, Keep_Weekly, Keep_Within, Keep_Yearly,
+        Keep_Last, Keep_Tag, Keep_Within,
+        Keep_Hourly, Keep_Daily, Keep_Weekly, Keep_Monthly, Keep_Yearly,
         Path, Prune, Tag, SnapshotID)
 
 
