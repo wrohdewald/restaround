@@ -837,7 +837,7 @@ class Command:
         return args
 
     def run(self, profile, options):
-        if options.dry_run:
+        if options.dry:
             logging.info('RUN %s', ' '.join(self.run_args(profile)))
             return 0
         env = os.environ.copy()
@@ -1121,7 +1121,7 @@ class Main:
         self.init_globals()
         parser = self.build_parser()
         options = parser.parse_args(argv[1:])
-        if options.dry_run:
+        if options.dry:
             if options.loglevel != 'debug':
                 options.loglevel = 'info'
         logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
@@ -1130,7 +1130,7 @@ class Main:
         options.profile = options.profile[0]
         os.environ['RESTAROUND_PID'] = str(os.getpid())
         os.environ['RESTAROUND_PROFILE'] = options.profile
-        os.environ['RESTAROUND_DRY_RUN'] = '1' if options.dry_run else '0'
+        os.environ['RESTAROUND_DRY_RUN'] = '1' if options.dry else '0'
         os.environ['RESTAROUND_LOGLEVEL'] = options.loglevel
         if options.profile == 'help':
             if options.subparser_name is None:
@@ -1160,7 +1160,7 @@ class Main:
           always used.
           """, usage='restaround [-h] [-n] profile command [restic arguments]')
         parser.add_argument(
-            '-n', '--dry-run', help="""Only show the restic command to be executed""",
+            '-n', '--dry', help="""Only show the restic command to be executed""",
             action='store_true', default=False)
         parser.add_argument(
             '-l', '--loglevel', help='set the loglevel only for restaround, not for restic',
