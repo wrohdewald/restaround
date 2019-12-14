@@ -123,11 +123,18 @@ class Test_restaround:
             'init_pre': '\n'.join([
                 '#!/bin/bash',
                 'echo "VALB=ccde=f"',
+                'echo "RA_DR=$RESTAROUND_DRY_RUN"',
+                'echo "RA_PID=$RESTAROUND_PID"',
+                'echo "RA_PR=$RESTAROUND_PROFILE"',
+                'echo "RA_LL=$RESTAROUND_LOGLEVEL"',
                 'exit 3']),
             'password-file': 'secret password'})
         self.run_test(profile, ['init'], [
             ('RUN ' + str(profile / 'pre'), 0, {b'VALA': b'bcde=f'}),
-            ('RUN ' + str(profile / 'init_pre'), 3, {b'VALA': b'bcde=f', b'VALB': b'ccde=f'})])
+            ('RUN ' + str(profile / 'init_pre'), 3, {
+                b'VALA': b'bcde=f', b'VALB': b'ccde=f',
+                b'RA_DR': b'0', b'RA_PID': str(os.getpid()).encode(),
+                b'RA_PR': b'my_profile', b'RA_LL': b'info'})])
 
     def test_pre_post(self):
         profile = self.define_profile(1, 'my_profile', {
@@ -1121,6 +1128,10 @@ class Main:
         logging.getLogger().setLevel(options.loglevel.upper())
         Main.command = options.subparser_name
         options.profile = options.profile[0]
+        os.environ['RESTAROUND_PID'] = str(os.getpid())
+        os.environ['RESTAROUND_PROFILE'] = options.profile
+        os.environ['RESTAROUND_DRY_RUN'] = '1' if options.dry_run else '0'
+        os.environ['RESTAROUND_LOGLEVEL'] = options.loglevel
         if options.profile == 'help':
             if options.subparser_name is None:
                 parser.print_help()

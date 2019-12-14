@@ -204,6 +204,17 @@ profile first, command line arguments last. As soon as an exit code from a ``pre
 is not 0, restaround aborts with that exit code. This is not true for ``post`` scripts:
 they are all executed.
 
+The scripts will get some environment variables:
+
+=========================  ==============================================================
+Environment variable       meaning
+=========================  ==============================================================
+RESTAROUND_PID             the process id of the calling restaround
+RESTAROUND_PROFILE         the name of the profile restaround was called with
+RESTAROUND_DRY_RUN         1 if --dry-run was given, 0 else
+RESTAROUND_LOGLEVEL        the given --loglevel: error, warning, info, debug
+=========================  ==============================================================
+
 Scripts can pass environment variables to the next script. Because there is no
 way known to me how to do that on a non linux system, they do that like this:
 
@@ -261,21 +272,34 @@ pre:
 ::
 
   #!/bin/bash
+
+  # This is reentrant. A pre or post script might call restaround
+
   mount | fgrep 'on /backdisk3 ' >/dev/null
   if test $? -eq 0
   then
-        echo DISK3_WAS_MOUNTED=1
+        echo DISK3_WAS_MOUNTED_BY=0
   else
-        echo DISK3_WAS_MOUNTED=0
+        echo mounting /backdisk3 >&2
         mount /backdisk3 >/dev/null
+        if test x${DISK3_WAS_MOUNTED_BY} == x
+        then
+                echo DISK3_WAS_MOUNTED_BY=$RESTAROUND_PID
+        else
+                # somebody else may have unmounted
+        fi
   fi
+
 
 post:
 
 ::
 
   #!/bin/bash
-  test $DISK3_WAS_MOUNTED -eq 0 && umount /backdisk3
+
+  # only umount if we are called by the restaround instance which mounted
+
+  test $DISK3_WAS_MOUNTED_BY -eq $RESTAROUND_PID && umount /backdisk3
 
 
 Show diff after backup
