@@ -500,6 +500,7 @@ class Command:
                         env[key] = value
             Main.run_history.append((cmdline, process.returncode, env))
             if process.returncode:
+                logging.warning('Aborting because script %s returned exit code %d', script, process.returncode)
                 return env, process.returncode
         return env, 0
 
