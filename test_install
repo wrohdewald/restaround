@@ -1,0 +1,41 @@
+#!/bin/bash
+
+if test ! -r test_install
+then
+	echo start this in the restaround root directory
+	exit 2
+fi
+
+kill_containers() {
+	for container in $(docker container ls --all --filter ancestor=restaround --quiet)
+	do
+		set +e
+		docker container kill $container 2>/dev/null
+		docker container rm $container
+	done
+	docker image prune -f
+	docker image rm restaround
+}
+
+git stash
+
+python3 setup.py clean --all
+
+rm -rf dist
+
+python3 setup.py sdist
+python3 setup.py bdist_wheel
+
+git stash pop
+
+twine upload --repository testpypi dist/*
+
+kill_containers
+
+set -e
+
+docker build --no-cache -t restaround .
+
+trap "kill_containers" 0
+
+docker run --interactive --tty  restaround /bin/bash

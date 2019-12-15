@@ -33,6 +33,8 @@ try:
 except ImportError:
     pass
 
+VERSION = "0.0.0"
+
 
 # PATHS defines directories for looking up profile definitions.
 # This is without the 'restaround' part.
@@ -1067,7 +1069,7 @@ class CmdSelftest(Command):
             return 1
         with tempfile.TemporaryDirectory() as tmpdir:
             path = shutil.which('restaround')
-            tmpfile = shutil.copyfile(path, os.path.join(tmpdir, 'restaround.py'))
+            tmpfile = shutil.copyfile(path, os.path.join(tmpdir, 'restaround_test.py'))
             # parallel execution: install pytest-xdist return pytest.main(['-n', '6', '-vv', tmpfile])
             return pytest.main(['-vv', tmpfile])
 
@@ -1118,6 +1120,9 @@ class Main:
     run_history = []  # tuple: RUN-Command, returncode, returned variables (by Pre)
 
     def __init__(self, argv):
+        if argv[1] == '--version':
+            print('restaround version', VERSION)
+            sys.exit(0)
         self.init_globals()
         parser = self.build_parser()
         options = parser.parse_args(argv[1:])
@@ -1193,6 +1198,11 @@ class Main:
                     result.append(instance)
         return result
 
-if __name__ == '__main__':
+
+def exec_main():
     main_instance = Main(sys.argv)
     sys.exit(main_instance.returncode)
+
+
+if __name__ == '__main__':
+    exec_main()

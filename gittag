@@ -1,0 +1,18 @@
+#!/bin/bash
+
+tag=$1
+
+# this
+# - writes tag into restaround.py
+# - commits that
+# - git tag $tag
+
+cd restaround
+cat restaround.py | sed s/'VERSION = .*/VERSION = "'$tag'"'/ > new.py
+
+mv new.py restaround.py
+chmod 755 restaround.py
+
+git add restaround.py
+git commit -m "release $tag"
+git tag $tag
