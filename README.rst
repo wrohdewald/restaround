@@ -71,7 +71,7 @@ restaround just passes them on.
 
 Definition
 ----------
-A profile is implemented as a directory with files for flags. Those can be 
+A profile is implemented as a directory with files for flags. Those can be
 symbolic links, getting flag values from other profiles.
 
 Most files in that directory have the same spelling as the restic_ flag.
@@ -198,7 +198,7 @@ gets the exit code of the restic_ command in the shell variable ``RESTIC_RESULT`
 
 Those flags can be defined analog to ``cacert``, see above.
 
-Just like with any flag, inheritance means that several ``pre`` or ``post`` scripts might be 
+Just like with any flag, inheritance means that several ``pre`` or ``post`` scripts might be
 defined. They are executed in the order as defined for normal flags: ``default``
 profile first, command line arguments last. As soon as an exit code from a ``pre`` script
 is not 0, restaround aborts with that exit code. This is not true for ``post`` scripts:
@@ -238,8 +238,8 @@ Directory structure
 file name                  meaning
 =========================  ==============================================================
 backup_tag_taga_tagb       backup --tag taga --tag tagb
-repo                       --repo REPONAME where REPONAME stands on the first line of `repo`
-restore_no_tag             removes --tag if it was defined in the default profile
+repo                       --repo REPONAME where REPONAME stands on the first line of ``repo``
+restore_no_tag             for restore only, removes --tag if it was defined in an inherited profile
 =========================  ==============================================================
 
 
@@ -280,13 +280,11 @@ pre:
   then
         echo DISK3_WAS_MOUNTED_BY=0
   else
-        echo mounting /backdisk3 >&2
         mount /backdisk3 >/dev/null
         if test x${DISK3_WAS_MOUNTED_BY} == x
         then
                 echo DISK3_WAS_MOUNTED_BY=$RESTAROUND_PID
-        else
-                # somebody else may have unmounted
+                # else somebody else may have unmounted
         fi
   fi
 
@@ -331,6 +329,7 @@ You may have to install a python package. On Debian, it would be ``python3-argco
 
 If you want to use ``restaround selftest``, please install pytest, see https://docs.pytest.org:
   ``pip install -U pytest``
+
 For parallel test execution see the comment in the source: search for run_pytest.
 
 
