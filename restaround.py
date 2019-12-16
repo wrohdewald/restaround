@@ -134,7 +134,7 @@ class Test_restaround:
             ('RUN ' + str(profile / 'init_pre'), 3, {
                 b'VALA': b'bcde=f', b'VALB': b'ccde=f',
                 b'RA_DR': b'0', b'RA_PID': str(os.getpid()).encode(),
-                b'RA_PR': b'my_profile', b'RA_LL': b'info'})])
+                b'RA_PR': b'my_profile', b'RA_LL': b'debug'})])
 
     def test_pre_post(self):
         profile = self.define_profile(1, 'my_profile', {
