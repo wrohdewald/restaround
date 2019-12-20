@@ -30,8 +30,6 @@ Usage: restaround [-h] [-n] [-s] profile command [restic arguments]
 
   -n, --dry-run   Only show the restic command to be executed
 
-  -s, --selftest  Check if restaround and restic are compatible. Also executes a test suite.
-
 
 ========================== ==============================================================================================
 profile                    Use profile. It is first looked for in ``~/.config/restaround/``, then in ``/etc/restaround/``
@@ -319,7 +317,11 @@ backup_post:
 Installation
 ============
 
-Simply copy the file ``restaround.py`` to ``/usr/local/bin/restaround``.
+Get it from https://pypi.org/project/restaround/
+
+You can do
+
+pip3 install restaround
 
 If you want bash command line argument completion, put this into your .bashrc:
   ``eval "$(register-python-argcomplete restaround)"``
