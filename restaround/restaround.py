@@ -33,7 +33,7 @@ try:
 except ImportError:
     pass
 
-VERSION = "0.0.0"
+VERSION = "0.1.0"
 
 
 # PATHS defines directories for looking up profile definitions.
