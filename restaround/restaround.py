@@ -59,7 +59,7 @@ class Test_restaround:
         self.repo1 = self.tmpdir / 'repösitory 1 €=EUR'
 
     def teardown_method(self):
-        shutil.rmtree(self.tmpdir)
+        shutil.rmtree(str(self.tmpdir))
         self.profiles = {}
 
     def define_profile(self, path_idx, name, content):
@@ -88,7 +88,7 @@ class Test_restaround:
 
     @staticmethod
     def compare_directories(a, b):
-        cmp = filecmp.dircmp(a, b)
+        cmp = filecmp.dircmp(str(a), str(b))
         assert not cmp.left_only
         assert not cmp.right_only
         assert not cmp.diff_files
@@ -350,11 +350,11 @@ class Test_restaround:
         self.run_test(profile, ['cpal'], [(
             'RUN cp -al {} {}'.format(
                 self.repo1,
-                cp_path), 0, {}), ])
+                str(cp_path)), 0, {}), ])
         assert cp_path.exists()
         self.compare_directories(self.repo1, cp_path)
         self.run_test(profile, ['rmcpal'], [(
-            'RUN rm -r {}'.format(cp_path), 0, {}), ])
+            'RUN rm -r {}'.format(str(cp_path)), 0, {}), ])
         assert not cp_path.exists()
 
 
@@ -903,11 +903,17 @@ class CmdCpal(Command):
         return repodir / '..' / (str(repodir) + '.restaround_cpal')
 
     def run_args(self, profile):
-        return ['cp', '-al', self.repo(profile), self.copydir(profile)]
+        return ['cp', '-al', str(self.repo(profile)), str(self.copydir(profile))]
+
+    def repo_parent(self, profile):
+        return PyPath(os.path.normpath(os.path.join(str(self.repo(profile)), '..')))
 
     def check_same_fs(self, profile):
-        repo = self.repo(profile)
-        if repo.is_mount():
+        repo = PyPath(str(self.repo(profile)))
+        repo_parent = self.repo_parent(profile)
+        repo_dev = repo.stat().st_dev
+        repo_parent_dev = repo_parent.stat().st_dev
+        if repo_parent_dev != repo_dev:
             logging.error(
                 '%s: %s is a mount point, this is not supported',
                 Main.command, repo)
@@ -930,7 +936,7 @@ class CmdRmcpal(CmdCpal):
     description = """remove the copy made with cpal. See also cpal."""
 
     def run_args(self, profile):
-        return ['rm', '-r', self.copydir(profile)]
+        return ['rm', '-r', str(self.copydir(profile))]
 
     def run_command(self, profile):
         copydir = self.copydir(profile)
@@ -1100,7 +1106,7 @@ class CmdSelftest(Command):
     @staticmethod
     def parse_command_help(command):
         flags_in_help = set()
-        help_command = run(['restic', 'help', command], capture_output=True).stdout
+        help_command = run(['restic', 'help', command], stdout=PIPE).stdout
         header_seen = False
         for _ in help_command.split(b'\n'):
             _ = _.decode('utf-8').strip()
