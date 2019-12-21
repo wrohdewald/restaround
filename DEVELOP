@@ -1,0 +1,15 @@
+creating a new release
+======================
+
+ 1. restaround selftest with python3.5 - 3.8
+ 2. git status must be clean
+ 3. cleanup commits
+ 4. pylint
+ 5. git stash list should be empty
+ 6. bin/gittag 0.1.5
+ 7. ./test_install
+ 8. clear https://test.pypi.org/project/restaround
+ 9. git push
+10. git push --tags
+11. ./upload
+
