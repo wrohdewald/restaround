@@ -178,6 +178,24 @@ class Test_restaround:
                 self.repo1,
             ), 0, {}), ])
 
+    def test_excludefile2(self):
+        """Have 2 exclude-files"""
+        default_profile = self.define_profile(0, 'default', {
+            'exclude-file': 'default_filea\ndefault_dirb\ndefault_dirc\n'})
+        profile = self.define_profile(1, 'my_profile', {
+            'repo': self.repo1,
+            'exclude-file': '_filea\n_dirb\n_dirc\n',
+            'password-file': 'secret password',
+            'path': '/path1\n/path2'})
+        self.run_init(profile)
+        self.run_test(profile, ['backup', PATHS[0]], [(
+            'RUN restic backup --password-file={} --repo={} --exclude-file={} --exclude-file={} {}'.format(
+                profile / 'password-file',
+                self.repo1,
+                default_profile / 'exclude-file',
+                profile / 'exclude-file',
+                PATHS[0]), 0, {}), ])
+
     def test_order(self):
         self.define_profile(0, 'default', {
             'verbose': '1',
@@ -631,8 +649,8 @@ class Cache_Dir(FileFlag):
     multi = False
     resolve_content = True
 
-class Exclude_File(FileFlag): pass
-class Password_File(FileFlag): multi = False
+class Exclude_File(FileFlag): multi = True
+class Password_File(FileFlag): pass
 
 class Mountpoint(PositionalFlag): pass
 class FileDir(PositionalFlag): pass
@@ -946,10 +964,6 @@ class CmdRmcpal(CmdCpal):
         return Command.run_command(self, profile)
 
 
-class CmdCache(Command):
-    accepts_flags = (Cleanup, Max_Age, No_Size)
-
-
 class CmdCat(Command):
     accepts_flags = (Objects, )
 
@@ -1042,7 +1056,7 @@ class CmdSelftest(Command):
     def check_restic(self):
         returncode = 0
         will_not_implement_command = (
-            'help', 'generate', 'key', 'migrate', 'self-update', 'version')
+            'help', 'cache', 'generate', 'key', 'migrate', 'self-update', 'version')
         will_not_implement_flags = {
             'option', 'help', 'inherit', 'mountpoint', 'pattern', 'dir',
             'pre', 'post', 'direct', 'snapshotid', 'singlesnapshotid', 'filedir', 'objects'}

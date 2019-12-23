@@ -1,11 +1,11 @@
 Changelog
 =========
 
-0.2.0 release 2019-11-28
+0.1.3 release 2019-12-23
 ------------------------
 
-  * bash autocompletion
-  * inherit profiles
+ * --exclude-file is allowed more than once
+ * restaround cache is no more - it makes no sense because it is profile agnostic
 
 
 0.1.0 release 2019-11-21
