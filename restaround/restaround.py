@@ -261,6 +261,24 @@ class Test_restaround:
             '--host=mysystem --host=othersystem --path=/ --set=overwrite SNID ID2'.format(
                 profile / 'password-file', self.repo1), 1, {})])
 
+    def test_rescan(self):
+        default_profile = self.define_profile(0, 'default', {
+            'password-file': 'secret password',
+            'pre': '\n'.join([
+                '#!/bin/bash',
+                'filename=$(dirname $0)/repo',
+                'echo {} >$filename'.format(self.repo1)]),
+            'exclude-caches': None})
+        profile = self.define_profile(0, 'real', {
+            'password-file': 'secret password'
+            })
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(default_profile / 'pre'), 0, {}),
+            ('RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {}), ])
+
     def test_backup(self):
         parent_profile = self.define_profile(1, 'parent', {
             'repo': self.repo1,
@@ -893,6 +911,8 @@ class Command:
             if returncode:
                 logging.warning('Aborting because script %s returned exit code %d', pre_script, returncode)
                 return returncode
+            # now rescan, the script may have changed files
+            profile = Profile(profile.options)
         returncode = self.run_command(profile)
         env['RESTIC_EXITCODE'] = str(returncode)
         for post_script in profile.post_scripts():

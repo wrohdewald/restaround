@@ -200,7 +200,7 @@ Just like with any flag, inheritance means that several ``pre`` or ``post`` scri
 defined. They are executed in the order as defined for normal flags: ``default``
 profile first, command line arguments last. As soon as an exit code from a ``pre`` script
 is not 0, restaround aborts with that exit code. This is not true for ``post`` scripts:
-they are all executed.
+after the main restic command finishes, all post scripts are always executed.
 
 The scripts will get some environment variables:
 
@@ -220,6 +220,10 @@ way known to me how to do that on a non linux system, they do that like this:
 
 Everything a script writes to stdout must look like that. You must suppress other
 output to stdout.
+
+Pre scripts are executed before the main restic command. They are allowed to
+modify  the flags in the profile directory, the profile is rescanned after
+every pre script.
 
 Those scripts also allows setting up chains like backup, check, forget, prune.
 Just be careful not to go into endless loops.
@@ -338,7 +342,7 @@ For parallel test execution see the comment in the source: search for run_pytest
 TODO
 ====
 - maybe lockrepo and unlockrepo: https://forum.restic.net/t/is-it-possible-to-decrypt-restic-files-from-the-command-line/2363/7
-- maybe restaround --ionice, also as profile/ionice_3
+- maybe restaround --ionice, also as profile/ionice_c3
 
 .. _restic: https://restic.net
 
