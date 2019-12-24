@@ -759,6 +759,16 @@ class Profile:
             return flags[0]
         return None
 
+    def pre_scripts(self):
+        for pre_flag in self.find_flags(Pre):
+            for _ in pre_flag.values:
+                yield _
+
+    def post_scripts(self):
+        for pre_flag in self.find_flags(Post):
+            for _ in pre_flag.values:
+                yield _
+
     def scan(self, profile_name):
         """"returns an unsorted list of Flag() for all filenames applicable to Main.command"""
         result = []
@@ -831,25 +841,21 @@ class Command:
             Main.flags[_.restic_name()].add_as_argument_for(self)
 
     @staticmethod
-    def run_scripts(scripts, env):
-        for script in scripts:
-            if not script.exists():
-                logging.warning('%s does not exist', script)
-            cmdline = 'RUN ' + str(script)
-            logging.info(cmdline)
-            process = run(str(script), env=env, stdout=PIPE)
-            if process.stdout:
-                for line in process.stdout.split(b'\n'):
-                    if b'=' in line:
-                        parts = line.split(b'=')
-                        key = parts[0]
-                        value = b'='.join(parts[1:])
-                        env[key] = value
-            Main.run_history.append((cmdline, process.returncode, env))
-            if process.returncode:
-                logging.warning('Aborting because script %s returned exit code %d', script, process.returncode)
-                return env, process.returncode
-        return env, 0
+    def run_script(script, env):
+        if not script.exists():
+            logging.warning('%s does not exist', script)
+        cmdline = 'RUN ' + str(script)
+        logging.info(cmdline)
+        process = run(str(script), env=env, stdout=PIPE)
+        if process.stdout:
+            for line in process.stdout.split(b'\n'):
+                if b'=' in line:
+                    parts = line.split(b'=')
+                    key = parts[0]
+                    value = b'='.join(parts[1:])
+                    env[key] = value
+        Main.run_history.append((cmdline, process.returncode, env))
+        return env, process.returncode
 
     def run_args(self, profile):
         args = ['restic', self.restic_name()]
@@ -861,14 +867,15 @@ class Command:
             logging.info('RUN %s', ' '.join(self.run_args(profile)))
             return 0
         env = os.environ.copy()
-        for pre_flag in profile.find_flags(Pre):
-            env, returncode = self.run_scripts(pre_flag.values, env)
+        for pre_script in profile.pre_scripts():
+            env, returncode = self.run_script(pre_script, env)
             if returncode:
+                logging.warning('Aborting because script %s returned exit code %d', pre_script, returncode)
                 return returncode
         returncode = self.run_command(profile)
         env['RESTIC_EXITCODE'] = str(returncode)
-        for post_flag in profile.find_flags(Post):
-            self.run_scripts(post_flag.values, env)
+        for post_script in profile.post_scripts():
+            self.run_script(post_script, env)
         return returncode
 
     def run_command(self, profile):
