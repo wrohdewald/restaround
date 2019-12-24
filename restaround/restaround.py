@@ -115,6 +115,25 @@ class Test_restaround:
             'password-file': 'secret password'})
         self.run_init(profile)
 
+    def test_script_path(self):
+        profile_name = 'profile with Umläut'
+        profile = self.define_profile(1, profile_name, {
+            'repo': self.repo1,
+            'pre': '\n'.join([
+                '#!/bin/bash',
+                'echo "VALB=$0"'
+                ]),
+            'password-file': 'secret password'})
+        prof = Profile()
+        Main.command = 'init'  # needed for inherit()
+        prof.inherit(profile_name)
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(profile / 'pre'), 0, {b'VALB': bytes(next(prof.pre_scripts()))}),
+            ('RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {})])
+
     def test_pre_fail(self):
         profile = self.define_profile(1, 'my_profile', {
             'repo': self.repo1,
@@ -705,12 +724,13 @@ class Profile:
     This holds everything defined in a profile that may apply to command.
     """
 
-    def __init__(self, options):
+    def __init__(self, options=None):
         self.options = options
         self.flags = dict()   # key: restic_name
         self.inherit('default')
-        self.inherit(options.profile)
-        self.use_options()
+        if options is not None:
+            self.inherit(options.profile)
+            self.use_options()
 
     @staticmethod
     def command_accepts():
