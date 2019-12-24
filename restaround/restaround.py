@@ -712,9 +712,10 @@ class Profile:
         self.inherit(options.profile)
         self.use_options()
 
-    def command_accepts(self):
+    @staticmethod
+    def command_accepts():
         """Returns accepted flag classes."""
-        return Command.accepts_flags + Main.commands[self.options.subparser_name].accepts_flags
+        return Command.accepts_flags + Main.commands[Main.command].accepts_flags
 
     def use_options(self):
         """Use options to set up profile flags."""
@@ -1169,7 +1170,7 @@ class Main:
                 parser.print_help()
             else:
                 Command.subparsers._name_parser_map[  # pylint: disable=protected-access
-                    Main.commands[options.subparser_name].restic_name()].print_help()
+                    Main.commands[Main.command].restic_name()].print_help()
             self.returncode = 0
         elif options.profile == 'selftest':
             self.returncode = Main.commands['selftest'].__class__().run(None, options)
