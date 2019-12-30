@@ -1147,7 +1147,11 @@ class CmdSelftest(Command):
         flags_section = False
         commands = []
         global_flags = []
-        help_stdout = run(['restic', 'help'], stdout=PIPE).stdout
+        try:
+            help_stdout = run(['restic', 'help'], stdout=PIPE).stdout
+        except FileNotFoundError:
+            logging.error('Please install restic, see https://restic.readthedocs.io/en/stable/020_installation.html')
+            sys.exit(2)
         for _ in help_stdout.split(b'\n'):
             _ = _.decode('utf-8').strip()
             if not _:
