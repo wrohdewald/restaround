@@ -160,6 +160,8 @@ it will be executed by restaround instead of passing it to restic. So you can us
 
 You can inherit from any number of other profiles.
 If there is a profile named ``default``, it is always inherited from.
+If a profile is defined both in ``/etc/restaround`` and in ``~/.config/restaround``,
+both are inherited in that order.
 
 Most flags can be passed multiple times to restic. For those, restaround will follow
 the inheritance tree from the top (the ``default`` profile) to the bottom (the profile
