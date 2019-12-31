@@ -320,6 +320,14 @@ backup_post:
   restaround "$RESTAROUND_PROFILE" diff $snap2 >&2
 
 
+Windows
+=======
+
+- ``cpal`` and ``rmcpal`` are not supported.
+- pre and post scripts must have the ending ``.bat``
+- all example scripts in the documentation are only for Linux. You are on your own for Windows.
+
+
 Installation
 ============
 

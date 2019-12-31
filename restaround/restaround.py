@@ -26,6 +26,7 @@ import logging
 from subprocess import call, run, PIPE
 import tempfile
 import filecmp
+import platform
 
 try:
     import argcomplete
@@ -47,6 +48,14 @@ VERSION = "0.1.3"
 # If a profile is found in more than one path, apply them in the order found.
 
 PATHS = (PyPath('/etc'), PyPath.home() / '.config')
+
+def script_path(script):
+    """On Windows, append '.bat'."""
+    if platform.system() == 'Windows':
+        _ = script.stem.split('_')
+        if 'pre' in _ or 'post' in _:
+            return script.with_suffix('.bat')
+    return script
 
 
 class Flag:
@@ -104,7 +113,7 @@ class Flag:
     def __file_lines(path):
         """Return a list of all stripped lines, empty lines exclude.
         Lines starting with # are also excluded."""
-        result = [x.strip() for x in open(str(path), encoding='utf-8').readlines()]
+        result = [x.strip() for x in open(path).readlines()]
         return [x for x in result if x and not x.startswith('#')]
 
     def __iadd__(self, other):
@@ -342,6 +351,8 @@ class ProfileEntry:
         self.path = path
         self.command = None
         self.remove = False
+        if platform.system() == 'Windows' and path.suffix == '.bat':
+            path = path.with_suffix('')
         fparts = path.parts[-1].split('_')
         for cmd in Main.commands.values():
             if (len(fparts) > 1 and cmd.restic_name() == fparts[0] and
@@ -498,6 +509,8 @@ class Command:
 
     description = 'For a description see restic help'
 
+    runs_on_windows = True
+
     def __init__(self):
         self.cmd_parser = None
 
@@ -517,17 +530,24 @@ class Command:
 
     @staticmethod
     def run_script(script, env):
+        script = script_path(script)
         if not script.exists():
             logging.warning('%s does not exist', script)
         cmdline = 'RUN ' + str(script)
         logging.info(cmdline)
-        process = run(str(script), env=env, stdout=PIPE)
+        process = run(str(script), env=env, stdout=PIPE) # , shell=True)
         if process.stdout:
             for line in process.stdout.split(b'\n'):
-                if b'=' in line:
-                    parts = line.split(b'=')
+                line = line.decode('utf-8')
+                line = line.replace('\r', '')
+                if '=' in line:
+                    if platform.system() == 'Windows' and line.startswith('"') and line.endswith('"'):
+                        line = line[1:-1]
+                    parts = line.split('=')
                     key = parts[0]
-                    value = b'='.join(parts[1:])
+                    value = '='.join(parts[1:])
+                    if platform.system() == 'Windows' and value.startswith('"') and value.endswith('"'):
+                        value = value[1:-1]
                     env[key] = value
         Main.run_history.append((cmdline, process.returncode, env))
         return env, process.returncode
@@ -536,6 +556,10 @@ class Command:
         args = ['restic', self.restic_name()]
         args.extend(profile.restic_parameters())
         return args
+
+    @classmethod
+    def is_supported(cls):
+        return platform.system() == 'Linux' or cls.runs_on_windows
 
     def run(self, profile, options):
         if options.dry:
@@ -583,6 +607,7 @@ class CmdBackup(Command):
 class CmdCpal(Command):
 
     accepts_flags = ()
+    runs_on_windows = False
 
     description = """Make a copy of the repository. All files will be hard linked.
     The name of the copy will be that of the repository + 'restaround_cpal'
@@ -861,7 +886,7 @@ class Main:
     @staticmethod
     def init_globals():
         Main.run_history = []
-        Main.commands = {x.restic_name(): x for x in Main.find_classes(Command)}
+        Main.commands = {x.restic_name(): x for x in Main.find_classes(Command) if x.is_supported()}
         Main.flags = {x.restic_name(): x for x in Main.find_classes(Flag)
                       if not x.__class__.__name__.endswith('Flag')}
     @staticmethod
@@ -907,6 +932,8 @@ class Main:
 
 class Test_restaround:
 
+    # pylint: disable=too-many-public-methods
+
     profiles = []
     tmpdir = None
     test_env = None
@@ -925,17 +952,24 @@ class Test_restaround:
         shutil.rmtree(str(self.tmpdir))
         self.profiles = {}
 
+    @staticmethod
+    def is_script(key):
+        return 'pre' in key.split('_') or 'post' in key.split('_')
+
     def define_profile(self, path_idx, name, content):
         path = PATHS[path_idx] / 'restaround' / name
         path.mkdir(parents=True)
         self.profiles[name] = path
         for key, value in content.items():
-            full_path = path / key
+            full_path = script_path(path / key)
             if value is None:
                 full_path.touch()
             else:
+                if platform.system() == 'Windows' and isinstance(value, str):
+                    value = value.replace('#!/bin/bash', '')
+                    value = value.replace('REPOFILE', str(path / 'repo'))
                 full_path.write_text(str(value) + '\n')
-                if 'pre' in key.split('_') or 'post' in key.split('_'):
+                if self.is_script(key):
                     full_path.chmod(0o755)
         return path
 
@@ -947,7 +981,7 @@ class Test_restaround:
             assert expect_entry[0] == got[0], 'RUN command differs'
             assert expect_entry[1] == got[1], 'exit code differs for {}'.format(got[0])
             for key, value in expect_entry[2].items():
-                assert value == got[2][key]
+                assert ': '.join([key, value]) == ': '.join([key, got[2][key]])
 
     @staticmethod
     def compare_directories(a, b):
@@ -978,26 +1012,48 @@ class Test_restaround:
             'password-file': 'secret password'})
         self.run_init(profile)
 
-    def test_script_path(self):
-        profile_name = 'profile with Umläut'
+    @pytest.mark.skipif(platform.system() != 'Linux', reason='not for Linux')
+    def test_script_path_linux(self):
+        profile_name = 'profile with Umlaut'
         profile = self.define_profile(1, profile_name, {
             'repo': self.repo1,
             'pre': '\n'.join([
                 '#!/bin/bash',
-                'echo "VALB=$0"'
+                'echo VALB=$0'
                 ]),
             'password-file': 'secret password'})
         prof = Profile()
         Main.command = 'init'  # needed for inherit()
         prof.inherit(profile_name)
         self.run_test(profile, ['init'], [
-            ('RUN ' + str(profile / 'pre'), 0, {b'VALB': bytes(next(prof.pre_scripts()))}),
+            ('RUN ' + str(script_path(profile / 'pre')), 0, {'VALB': str(next(prof.pre_scripts()))}),
             ('RUN restic init --password-file={} --repo={}'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {})])
 
-    def test_pre_fail(self):
+    @pytest.mark.skipif(platform.system() != 'Windows', reason='only for Windows')
+    def test_script_path_windows(self):
+        profile_name = 'profile with Umlaut'
+        profile = self.define_profile(1, profile_name, {
+            'repo': self.repo1,
+            'pre': '\n'.join([
+                '@echo off',
+                'echo VALB=%0'
+                ]),
+            'password-file': 'secret password'})
+        prof = Profile()
+        Main.command = 'init'  # needed for inherit()
+        prof.inherit(profile_name)
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(script_path(profile / 'pre')), 0, {'VALB': str(next(prof.pre_scripts()))}),
+            ('RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {})])
+
+    @pytest.mark.skipif(platform.system() != 'Linux', reason='only for Linux')
+    def test_pre_fail_linux(self):
         profile = self.define_profile(1, 'my_profile', {
             'repo': self.repo1,
             'pre': '\n'.join([
@@ -1014,18 +1070,43 @@ class Test_restaround:
                 'exit 3']),
             'password-file': 'secret password'})
         self.run_test(profile, ['init'], [
-            ('RUN ' + str(profile / 'pre'), 0, {b'VALA': b'bcde=f'}),
-            ('RUN ' + str(profile / 'init_pre'), 3, {
-                b'VALA': b'bcde=f', b'VALB': b'ccde=f',
-                b'RA_DR': b'0', b'RA_PID': str(os.getpid()).encode(),
-                b'RA_PR': b'my_profile', b'RA_LL': b'debug'})])
+            ('RUN ' + str(script_path(profile / 'pre')), 0, {'VALA': 'bcde=f'}),
+            ('RUN ' + str(script_path(profile / 'init_pre')), 3, {
+                'VALA': 'bcde=f', 'VALB': 'ccde=f',
+                'RA_DR': '0', 'RA_PID': str(os.getpid()),
+                'RA_PR': 'my_profile', 'RA_LL': 'debug'})])
+
+    @pytest.mark.skipif(platform.system() != 'Windows', reason='only for Windows')
+    def test_pre_fail_windows(self):
+        profile = self.define_profile(1, 'my_profile', {
+            'repo': self.repo1,
+            'pre': '\n'.join([
+                '@echo off',
+                'echo VALA=bcde=f',
+                'exit 0']),
+            'init_pre': '\n'.join([
+                '@echo off',
+                'echo "VALB=ccde=f"',
+                'echo "RA_DR=%RESTAROUND_DRY_RUN%"',
+                'echo "RA_PID=%RESTAROUND_PID%"',
+                'echo "RA_PR=%RESTAROUND_PROFILE%"',
+                'echo "RA_LL=%RESTAROUND_LOGLEVEL%"',
+                'exit 3']),
+            'password-file': 'secret password'})
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(script_path(profile / 'pre')), 0, {'VALA': 'bcde=f'}),
+            ('RUN ' + str(script_path(profile / 'init_pre')), 3, {
+                'VALA': 'bcde=f', 'VALB': 'ccde=f',
+                'RA_DR': '0', 'RA_PID': str(os.getpid()),
+                'RA_PR': 'my_profile', 'RA_LL': 'debug'}),
+            ])
 
     def test_pre_post(self):
         profile = self.define_profile(1, 'my_profile', {
             'repo': self.repo1,
             'pre': '\n'.join([
                 '#!/bin/bash',
-                'echo "VALA=bcde=f"',
+                'echo VALA="bcde=f"',
                 'exit 0']),
             'init_pre': '\n'.join([
                 '#!/bin/bash',
@@ -1036,13 +1117,13 @@ class Test_restaround:
                 'exit 0']),
             'password-file': 'secret password'})
         self.run_test(profile, ['init'], [
-            ('RUN ' + str(profile / 'pre'), 0, {b'VALA': b'bcde=f'}),
-            ('RUN ' + str(profile / 'init_pre'), 0, {b'VALA': b'bcde=f', b'VALB': b'ccde=f'}),
+            ('RUN ' + str(script_path(profile / 'pre')), 0, {}),
+            ('RUN ' + str(script_path(profile / 'init_pre')), 0, {}),
             ('RUN restic init --password-file={} --repo={}'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {}),
-            ('RUN ' + str(profile / 'post'), 0, {})])
+            ('RUN ' + str(script_path(profile / 'post')), 0, {})])
 
     def test_path(self):
         profile = self.define_profile(1, 'my_profile', {
@@ -1124,7 +1205,8 @@ class Test_restaround:
             '--host=mysystem --host=othersystem --path=/ --set=overwrite SNID ID2'.format(
                 profile / 'password-file', self.repo1), 1, {})])
 
-    def test_rescan(self):
+    @pytest.mark.skipif(platform.system() != 'Linux', reason='Only for Linux')
+    def test_rescan_linux(self):
         default_profile = self.define_profile(0, 'default', {
             'password-file': 'secret password',
             'pre': '\n'.join([
@@ -1136,7 +1218,25 @@ class Test_restaround:
             'password-file': 'secret password'
             })
         self.run_test(profile, ['init'], [
-            ('RUN ' + str(default_profile / 'pre'), 0, {}),
+            ('RUN ' + str(script_path(default_profile / 'pre')), 0, {}),
+            ('RUN restic init --password-file={} --repo={}'.format(
+                profile / 'password-file',
+                self.repo1,
+            ), 0, {}), ])
+
+    @pytest.mark.skipif(platform.system() != 'Windows', reason='only for Windows')
+    def test_rescan_windows(self):
+        default_profile = self.define_profile(0, 'default', {
+            'password-file': 'secret password',
+            'pre': '\n'.join([
+                '@echo off',
+                'echo {} >REPOFILE'.format(self.repo1)]),
+            'exclude-caches': None})
+        profile = self.define_profile(0, 'real', {
+            'password-file': 'secret password'
+            })
+        self.run_test(profile, ['init'], [
+            ('RUN ' + str(script_path(default_profile / 'pre')), 0, {}),
             ('RUN restic init --password-file={} --repo={}'.format(
                 profile / 'password-file',
                 self.repo1,
@@ -1163,12 +1263,12 @@ class Test_restaround:
         self.run_init(parent_profile)
         self.run_test(profile, ['backup'], [(
             'RUN restic backup ' \
-            '--cache-dir=/tmp --limit-download=1000 --limit-upload=500 ' \
+            '--cache-dir={}tmp --limit-download=1000 --limit-upload=500 ' \
             '--password-file={} --repo={} --host=mysystem {}'.format(
+                os.sep,
                 parent_profile / 'password-file',
-                self.repo1,
-                PATHS[1],
-            ), 0, {})])
+                self.repo1, PATHS[1],
+                ), 0, {})])
 
     def test_snapshots_forget(self):
         parent_profile = self.define_profile(1, 'parent', {
@@ -1222,6 +1322,7 @@ class Test_restaround:
             '--prune --tag=a --tag=b --tag=c latest'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
 
+    @pytest.mark.skipif(platform.system() != 'Linux', reason='Windows: restore path problem')
     def test_restore(self):
         target_dir = self.tmpdir / 'restore_target'
         profile = self.define_profile(1, 'pr', {
@@ -1248,6 +1349,7 @@ class Test_restaround:
                 ), 0, {}), ])
         self.compare_directories(PATHS[1], target_dir / PyPath(str(self.tmpdir)[1:]) / 'user')
 
+    @pytest.mark.skipif(not CmdCpal.is_supported(), reason='not supported on Windows')
     def test_cpal(self):
         # 1. normal, mit rmcpal
         # 2. repo=sftp....
