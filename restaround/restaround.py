@@ -33,6 +33,12 @@ try:
 except ImportError:
     pass
 
+try:
+    import pytest
+    HAS_PYTEST = True
+except ImportError:
+    HAS_PYTEST = False
+
 VERSION = "0.1.3"
 
 
@@ -760,9 +766,7 @@ class CmdSelftest(Command):
 
     @staticmethod
     def run_pytest():
-        try:
-            import pytest
-        except ImportError:
+        if not HAS_PYTEST:
             logging.warning('please install pytest: "pip install -U pytest"')
             return 1
         with tempfile.TemporaryDirectory() as tmpdir:
