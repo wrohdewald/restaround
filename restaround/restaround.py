@@ -851,9 +851,6 @@ class Main:
     run_history = []  # tuple: RUN-Command, returncode, returned variables (by Pre)
 
     def __init__(self, argv):
-        if argv[1] == '--version':
-            print('restaround version', VERSION)
-            sys.exit(0)
         self.init_globals()
         parser = self.build_parser()
         try:
@@ -874,6 +871,9 @@ class Main:
         os.environ['RESTAROUND_LOGLEVEL'] = options.loglevel
         if options.profile == 'help':
             if options.subparser_name is None:
+                print('restaround', VERSION)
+                run(['restic', 'version'], check=True)
+                print()
                 parser.print_help()
             else:
                 Command.subparsers._name_parser_map[  # pylint: disable=protected-access
