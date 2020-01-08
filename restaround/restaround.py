@@ -856,6 +856,10 @@ class Main:
             sys.exit(0)
         self.init_globals()
         parser = self.build_parser()
+        try:
+            argcomplete.autocomplete(parser)
+        except NameError:
+            pass
         options = parser.parse_args(argv[1:])
         if options.dry:
             if options.loglevel != 'debug':
@@ -909,10 +913,6 @@ class Main:
         for _ in Main.commands.values():
             _.add_subparser()
 
-        try:
-            argcomplete.autocomplete(parser)
-        except NameError:
-            pass
         return parser
 
     @staticmethod
