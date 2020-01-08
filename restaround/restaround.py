@@ -535,7 +535,7 @@ class Command:
             logging.warning('%s does not exist', script)
         cmdline = 'RUN ' + str(script)
         logging.info(cmdline)
-        process = run(str(script), env=env, stdout=PIPE) # , shell=True)
+        process = run(str(script), env=env, stdout=PIPE, check=False)
         if process.stdout:
             for line in process.stdout.split(b'\n'):
                 line = line.decode('utf-8')
@@ -807,7 +807,7 @@ class CmdSelftest(Command):
         commands = []
         global_flags = []
         try:
-            help_stdout = run(['restic', 'help'], stdout=PIPE).stdout
+            help_stdout = run(['restic', 'help'], stdout=PIPE, check=True).stdout
         except FileNotFoundError:
             logging.error('Please install restic, see https://restic.readthedocs.io/en/stable/020_installation.html')
             sys.exit(2)
@@ -831,7 +831,7 @@ class CmdSelftest(Command):
     @staticmethod
     def parse_command_help(command):
         flags_in_help = set()
-        help_command = run(['restic', 'help', command], stdout=PIPE).stdout
+        help_command = run(['restic', 'help', command], stdout=PIPE, check=True).stdout
         header_seen = False
         for _ in help_command.split(b'\n'):
             _ = _.decode('utf-8').strip()
