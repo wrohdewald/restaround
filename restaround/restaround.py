@@ -172,9 +172,10 @@ class Flag:
 class BinaryFlag(Flag):
 
     def args(self):
-        if self.values[0]:
-            return ['--' + self.restic_name()]
-        return []
+        return ['--' + self.restic_name()]
+
+    def add_values(self, entry):
+        pass
 
     @classmethod
     def add_as_argument_for(cls, command):
