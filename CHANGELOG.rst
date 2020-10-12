@@ -6,6 +6,7 @@ Changelog
 
  * support Windows
  * introduce environment variable RESTAROUND_COMMAND
+ * backport to Python3.4 for an important client of mine
 
 
 0.1.3 release 2019-12-24
