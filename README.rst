@@ -211,6 +211,7 @@ Environment variable       meaning
 =========================  ==============================================================
 RESTAROUND_PID             the process id of the calling restaround
 RESTAROUND_PROFILE         the name of the profile restaround was called with
+RESTAROUND_COMMAND         the name of the wanted restic command
 RESTAROUND_DRY_RUN         1 if --dry-run was given, 0 else
 RESTAROUND_LOGLEVEL        the given --loglevel: error, warning, info, debug
 =========================  ==============================================================

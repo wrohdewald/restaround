@@ -5,6 +5,7 @@ Changelog
 ------------------------
 
  * support Windows
+ * introduce environment variable RESTAROUND_COMMAND
 
 
 0.1.3 release 2019-12-24

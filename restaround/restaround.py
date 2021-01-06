@@ -884,6 +884,7 @@ class Main:
             self.returncode = Main.commands['selftest'].__class__().run(None, options)
         else:
             profile = Profile(options)
+            os.environ['RESTAROUND_COMMAND'] = Main.command
             self.returncode = Main.commands[Main.command].__class__().run(profile, options)
         if self.returncode and self.returncode % 256 == 0:
             self.returncode -= 1
