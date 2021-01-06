@@ -113,7 +113,7 @@ class Flag:
     def __file_lines(path):
         """Return a list of all stripped lines, empty lines exclude.
         Lines starting with # are also excluded."""
-        result = [x.strip() for x in open(str(path)).readlines()]
+        result = [x.strip() for x in open(str(path), encoding='utf-8').readlines()]
         return [x for x in result if x and not x.startswith('#')]
 
     def __iadd__(self, other):
