@@ -569,7 +569,7 @@ class Command:
         for pre_script in profile.pre_scripts():
             env, returncode = self.run_script(pre_script, env)
             if returncode:
-                logging.warning('Aborting because %s returned exit code %d', pre_script, returncode)
+                logging.warning('Aborting because script %s returned exit code %d', pre_script, returncode)
                 return returncode
             # now rescan, the script may have changed files
             profile = Profile(profile.options)
