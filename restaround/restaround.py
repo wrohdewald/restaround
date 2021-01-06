@@ -19,11 +19,19 @@
 
 import os
 import sys
-from pathlib import Path as PyPath
+try:
+    from pathlib import Path as PyPath
+except ImportError:
+    from pathlib2 import Path as PyPath
 import shutil
 import argparse
+
 import logging
-from subprocess import call, check_output, CalledProcessError
+try:
+    from subprocess import call, check_output, CalledProcessError
+except ImportError:
+    # python2.6
+    from subprocess32 import call, check_output, CalledProcessError
 import tempfile
 import filecmp
 import platform
@@ -63,7 +71,7 @@ def script_path(script):
     return script
 
 
-class Flag:
+class Flag(object):  # pylint: disable=useless-object-inheritance
     """
     There is a Flag class for every restic argument.
 
@@ -76,6 +84,7 @@ class Flag:
 
     """
 
+    class_type = 'Flag'
     multi = False
     resolve_content = True
 
@@ -118,7 +127,10 @@ class Flag:
     def __file_lines(path):
         """Return a list of all stripped lines, empty lines exclude.
         Lines starting with # are also excluded."""
-        result = [x.strip() for x in open(str(path), encoding='utf-8').readlines()]
+        try:
+            result = [x.strip() for x in open(str(path), encoding='utf-8').readlines()]
+        except TypeError:
+            result = [x.strip() for x in open(str(path)).readlines()]
         return [x for x in result if x and not x.startswith('#')]
 
     def __iadd__(self, other):
@@ -138,13 +150,13 @@ class Flag:
 
     def args(self):
         """Return a list of argument parts."""
-        return ['--{}={}'.format(self.restic_name(), x) for x in self.values]
+        return ['--{0}={1}'.format(self.restic_name(), x) for x in self.values]
 
     @classmethod
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
-            '--{}'.format(cls.restic_name()))
+            '--{0}'.format(cls.restic_name()))
 
     def apply_to(self, profile):
         flag_name = self.restic_name()
@@ -186,7 +198,7 @@ class BinaryFlag(Flag):
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
-            '--{}'.format(cls.restic_name()), action='store_true', default=False)
+            '--{0}'.format(cls.restic_name()), action='store_true', default=False)
 
 
 class ListFlag(Flag):
@@ -198,7 +210,7 @@ class ListFlag(Flag):
     def add_as_argument_for(cls, command):
         """Add this flag to the command line parser."""
         command.cmd_parser.add_argument(
-            '--{}'.format(cls.restic_name()), action='append')
+            '--{0}'.format(cls.restic_name()), action='append')
 
 
 class FileFlag(Flag):
@@ -206,7 +218,10 @@ class FileFlag(Flag):
     resolve_content = False
 
     def add_values(self, entry):
-        super().add_values(entry)
+        try:
+            super().add_values(entry)
+        except TypeError:
+            super(FileFlag, self).add_values(entry)  # pylint: disable=super-with-arguments
         self.values = [PyPath(x) if not isinstance(x, PyPath) else x for x in self.values]
 
 
@@ -433,7 +448,7 @@ class Profile:
     def restic_parameters(self):
         """Return all formatted flags applicable to command."""
         for flag in self.sorted_flags():
-            assert flag.values is not None, 'Flag {} has values None'.format(flag)
+            assert flag.values is not None, 'Flag {0} has values None'.format(flag)
             for _ in flag.args():
                 yield _
 
@@ -501,7 +516,8 @@ class Profile:
             logging.debug('%s removes %s', profile_name, flag.restic_name())   # for command if command
 
 
-class Command:
+class Command(object):  # pylint: disable=useless-object-inheritance
+    class_type = 'Command'
     # Inherit must be first !
     accepts_flags = (
         Cacert, Cache_Dir, Cleanup_Cache,
@@ -603,7 +619,7 @@ class Command:
         return cls.__name__.lower().replace('_', '-')[3:]
 
     def __str__(self):
-        return 'Command({})'.format(self.restic_name())
+        return 'Command({0})'.format(self.restic_name())
 
 
 class CmdBackup(Command):
@@ -777,9 +793,9 @@ class CmdSelftest(Command):
         returncode = 0
         will_not_implement_command = (
             'help', 'cache', 'generate', 'key', 'migrate', 'self-update', 'version')
-        will_not_implement_flags = {
+        will_not_implement_flags = set((
             'option', 'help', 'inherit', 'mountpoint', 'pattern', 'dir',
-            'pre', 'post', 'direct', 'snapshotid', 'singlesnapshotid', 'filedir', 'objects'}
+            'pre', 'post', 'direct', 'snapshotid', 'singlesnapshotid', 'filedir', 'objects'))
         commands = self.parse_general_help()
         for command in commands:
             if command in will_not_implement_command:
@@ -790,7 +806,7 @@ class CmdSelftest(Command):
                 continue
             restic_flags = set(Command.accepts_flags)
             restic_flags |= set(Main.commands[command].accepts_flags)
-            restic_flags = {x.restic_name() for x in restic_flags}
+            restic_flags = set(x.restic_name() for x in restic_flags)
             flags_in_help = self.parse_command_help(command)
             for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
                 logging.warning('restic %s --%s is not implemented', command, unimplemented)
@@ -902,9 +918,14 @@ class Main:
     @staticmethod
     def init_globals():
         Main.run_history = []
-        Main.commands = {x.restic_name(): x for x in Main.find_classes(Command) if x.is_supported()}
-        Main.flags = {x.restic_name(): x for x in Main.find_classes(Flag)
-                      if not x.__class__.__name__.endswith('Flag')}
+        Main.commands = dict()
+        for x in Main.find_classes(Command):
+            Main.commands[x.restic_name()] = x
+        Main.flags = dict()
+        for x in Main.find_classes(Flag):
+            if not x.__class__.__name__.endswith('Flag'):
+                Main.flags[x.restic_name()] = x
+
     @staticmethod
     def build_parser():
         parser = argparse.ArgumentParser(description="""
@@ -928,11 +949,12 @@ class Main:
         return parser
 
     @staticmethod
-    def find_classes(baseclass):
+    def find_classes(wanted_type):
+        wanted_name = wanted_type.__name__
         result = list()
         for glob in globals().values():
-            if hasattr(glob, "__mro__"):
-                if glob.__mro__[-2] == baseclass and len(glob.__mro__) > 2:
+            if hasattr(glob, 'class_type'):
+                if glob is not wanted_type and glob.class_type == wanted_name:
                     try:
                         instance = glob()
                     except Exception:
@@ -991,7 +1013,7 @@ class Test_restaround:
         for idx, expect_entry in enumerate(expect_hist):
             got = got_history[idx]
             assert expect_entry[0] == got[0], 'RUN command differs'
-            assert expect_entry[1] == got[1], 'exit code differs for {}'.format(got[0])
+            assert expect_entry[1] == got[1], 'exit code differs for {0}'.format(got[0])
             for key, value in expect_entry[2].items():
                 assert ': '.join([key, value]) == ': '.join([key, got[2][key]])
 
@@ -1012,7 +1034,7 @@ class Test_restaround:
     def run_init(self, profile):
         repo = ProfileEntry(profile / 'repo').flag().values[0]
         self.run_test(profile, ['init'], [(
-            'RUN restic init --password-file={} --repo={}'.format(
+            'RUN restic init --password-file={0} --repo={1}'.format(
                 profile / 'password-file',
                 repo,
             ), 0, {}), ])
@@ -1040,7 +1062,7 @@ class Test_restaround:
             prof.inherit(profile_name)
             self.run_test(profile, ['init'], [
                 ('RUN ' + str(script_path(profile / 'pre')), 0, {'VALB': str(next(prof.pre_scripts()))}),
-                ('RUN restic init --password-file={} --repo={}'.format(
+                ('RUN restic init --password-file={0} --repo={1}'.format(
                     profile / 'password-file',
                     self.repo1,
                 ), 0, {})])
@@ -1060,7 +1082,7 @@ class Test_restaround:
             prof.inherit(profile_name)
             self.run_test(profile, ['init'], [
                 ('RUN ' + str(script_path(profile / 'pre')), 0, {'VALB': str(next(prof.pre_scripts()))}),
-                ('RUN restic init --password-file={} --repo={}'.format(
+                ('RUN restic init --password-file={0} --repo={1}'.format(
                     profile / 'password-file',
                     self.repo1,
                 ), 0, {})])
@@ -1132,7 +1154,7 @@ class Test_restaround:
         self.run_test(profile, ['init'], [
             ('RUN ' + str(script_path(profile / 'pre')), 0, {}),
             ('RUN ' + str(script_path(profile / 'init_pre')), 0, {}),
-            ('RUN restic init --password-file={} --repo={}'.format(
+            ('RUN restic init --password-file={0} --repo={1}'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {}),
@@ -1144,12 +1166,12 @@ class Test_restaround:
             'password-file': 'secret password',
             'path': '/path1\n/path2'})
         self.run_test(profile, ['init'], [(
-            'RUN restic init --password-file={} --repo={}'.format(
+            'RUN restic init --password-file={0} --repo={1}'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {}), ])
         self.run_test(profile, ['snapshots'], [(
-            'RUN restic snapshots --password-file={} --repo={} --path=/path1 --path=/path2'.format(
+            'RUN restic snapshots --password-file={0} --repo={1} --path=/path1 --path=/path2'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {}), ])
@@ -1165,7 +1187,7 @@ class Test_restaround:
             'path': '/path1\n/path2'})
         self.run_init(profile)
         self.run_test(profile, ['backup', PATHS[0]], [(
-            'RUN restic backup --password-file={} --repo={} --exclude-file={} --exclude-file={} {}'.format(
+            'RUN restic backup --password-file={0} --repo={1} --exclude-file={2} --exclude-file={3} {4}'.format(
                 profile / 'password-file',
                 self.repo1,
                 default_profile / 'exclude-file',
@@ -1187,17 +1209,17 @@ class Test_restaround:
             'backup_no_verbose': None,
             'inherit': 'Real profile with Umläut'})
         self.run_test(profile, ['init'], [(
-            'RUN restic init --password-file={} --repo={} --verbose=3'.format(
+            'RUN restic init --password-file={0} --repo={1} --verbose=3'.format(
                 profile / 'password-file',
                 self.repo1,
             ), 0, {}), ])
         self.run_test(profile3, ['backup', PATHS[0]], [(
-            'RUN restic backup --password-file={} --repo={} --exclude-caches {}'.format(
+            'RUN restic backup --password-file={0} --repo={1} --exclude-caches {2}'.format(
                 profile / 'password-file',
                 self.repo1,
                 PATHS[0]), 0, {}), ])
         self.run_test(profile, ['backup', '--verbose=9', PATHS[0]], [(
-            'RUN restic backup --password-file={} --repo={} --verbose=9 --exclude-caches {}'.format(
+            'RUN restic backup --password-file={0} --repo={1} --verbose=9 --exclude-caches {2}'.format(
                 profile / 'password-file',
                 self.repo1,
                 PATHS[0]), 0, {}), ])
@@ -1214,7 +1236,7 @@ class Test_restaround:
             'password-file': 'secret password'})
         self.run_init(profile)
         self.run_test(profile, ['tag'], [(
-            'RUN restic tag --password-file={} --repo={} --add=four --add=five --add=one --add=two --add=tag ' \
+            'RUN restic tag --password-file={0} --repo={1} --add=four --add=five --add=one --add=two --add=tag ' \
             '--host=mysystem --host=othersystem --path=/ --set=overwrite SNID ID2'.format(
                 profile / 'password-file', self.repo1), 1, {})])
 
@@ -1226,14 +1248,14 @@ class Test_restaround:
                 'pre': '\n'.join([
                     '#!/bin/bash',
                     'filename=$(dirname $0)/repo',
-                    'echo {} >$filename'.format(self.repo1)]),
+                    'echo {0} >$filename'.format(self.repo1)]),
                 'exclude-caches': None})
             profile = self.define_profile(0, 'real', {
                 'password-file': 'secret password'
                 })
             self.run_test(profile, ['init'], [
                 ('RUN ' + str(script_path(default_profile / 'pre')), 0, {}),
-                ('RUN restic init --password-file={} --repo={}'.format(
+                ('RUN restic init --password-file={0} --repo={1}'.format(
                     profile / 'password-file',
                     self.repo1,
                 ), 0, {}), ])
@@ -1244,14 +1266,14 @@ class Test_restaround:
                 'password-file': 'secret password',
                 'pre': '\n'.join([
                     '@echo off',
-                    'echo {} >REPOFILE'.format(self.repo1)]),
+                    'echo {0} >REPOFILE'.format(self.repo1)]),
                 'exclude-caches': None})
             profile = self.define_profile(0, 'real', {
                 'password-file': 'secret password'
                 })
             self.run_test(profile, ['init'], [
                 ('RUN ' + str(script_path(default_profile / 'pre')), 0, {}),
-                ('RUN restic init --password-file={} --repo={}'.format(
+                ('RUN restic init --password-file={0} --repo={1}'.format(
                     profile / 'password-file',
                     self.repo1,
                 ), 0, {}), ])
@@ -1277,8 +1299,8 @@ class Test_restaround:
         self.run_init(parent_profile)
         self.run_test(profile, ['backup'], [(
             'RUN restic backup ' \
-            '--cache-dir={}tmp --limit-download=1000 --limit-upload=500 ' \
-            '--password-file={} --repo={} --host=mysystem {}'.format(
+            '--cache-dir={0}tmp --limit-download=1000 --limit-upload=500 ' \
+            '--password-file={1} --repo={2} --host=mysystem {3}'.format(
                 os.sep,
                 parent_profile / 'password-file',
                 self.repo1, PATHS[1],
@@ -1309,27 +1331,27 @@ class Test_restaround:
         self.run_init(parent_profile)
         self.run_test(profile, ['backup'], [(
             'RUN restic backup ' \
-            '--password-file={} --repo={} ' \
-            '--host=mysystem --tag=a --tag=b --tag=c {}'.format(
+            '--password-file={0} --repo={1} ' \
+            '--host=mysystem --tag=a --tag=b --tag=c {2}'.format(
                 parent_profile / 'password-file',
                 self.repo1,
                 PATHS[1],
             ), 0, {})])
         self.run_test(profile, ['snapshots'], [(
             'RUN restic snapshots ' \
-            '--password-file={} --repo={} --compact --group-by=paths ' \
+            '--password-file={0} --repo={1} --compact --group-by=paths ' \
             '--host=mysystem ' \
             '--tag=a --tag=b --tag=c'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
         self.run_test(profile, ['ls', '--recursive', 'latest', '/'], [(
             'RUN restic ls ' \
-            '--password-file={} --repo={} ' \
+            '--password-file={0} --repo={1} ' \
             '--host=mysystem --recursive ' \
             '--tag=a --tag=b --tag=c latest /'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
         self.run_test(profile, ['forget', 'latest'], [(
             'RUN restic forget ' \
-            '--password-file={} --repo={} ' \
+            '--password-file={0} --repo={1} ' \
             '--compact --group-by=paths ' \
             '--host=mysystem --keep-last=5 --keep-tag=a --keep-tag=b --keep-within=1y5m7d2h ' \
             '--keep-hourly=6 --keep-monthly=7 --keep-yearly=8 ' \
@@ -1350,15 +1372,15 @@ class Test_restaround:
             self.run_init(profile)
             self.run_test(profile, ['backup'], [(
                 'RUN restic backup ' \
-                '--password-file={} --repo={} ' \
-                '--exclude=patterna --exclude=**.tmp --exclude=/cache {}'.format(
+                '--password-file={0} --repo={1} ' \
+                '--exclude=patterna --exclude=**.tmp --exclude=/cache {2}'.format(
                     profile / 'password-file',
                     self.repo1,
                     PATHS[1]), 0, {}), ])
             self.run_test(profile, ['restore', 'latest'], [(
                 'RUN restic restore ' \
-                '--password-file={} --repo={} ' \
-                '--exclude=patterna --exclude=**.tmp --exclude=/cache --target={} latest'.format(
+                '--password-file={0} --repo={1} ' \
+                '--exclude=patterna --exclude=**.tmp --exclude=/cache --target={2} latest'.format(
                     profile / 'password-file',
                     self.repo1, target_dir,
                     ), 0, {}), ])
@@ -1376,20 +1398,20 @@ class Test_restaround:
             self.run_init(profile)
             self.run_test(profile, ['backup'], [(
                 'RUN restic backup ' \
-                '--password-file={} --repo={} {}'.format(
+                '--password-file={0} --repo={1} {2}'.format(
                     profile / 'password-file',
                     self.repo1,
                     PATHS[1]), 0, {}), ])
 
             cp_path = PyPath(str(self.repo1) + '.restaround_cpal')
             self.run_test(profile, ['cpal'], [(
-                'RUN cp -al {} {}'.format(
+                'RUN cp -al {0} {1}'.format(
                     self.repo1,
                     str(cp_path)), 0, {}), ])
             assert cp_path.exists()
             self.compare_directories(self.repo1, cp_path)
             self.run_test(profile, ['rmcpal'], [(
-                'RUN rm -r {}'.format(str(cp_path)), 0, {}), ])
+                'RUN rm -r {0}'.format(str(cp_path)), 0, {}), ])
             assert not cp_path.exists()
 
 
