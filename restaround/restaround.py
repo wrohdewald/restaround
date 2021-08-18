@@ -615,6 +615,11 @@ class Command(object):  # pylint: disable=useless-object-inheritance
         return returncode
 
     @classmethod
+    def help(cls):
+        Command.subparsers._name_parser_map[  # pylint: disable=protected-access
+            cls.restic_name()].print_help()
+
+    @classmethod
     def restic_name(cls):
         return cls.__name__.lower().replace('_', '-')[3:]
 
@@ -732,6 +737,20 @@ class CmdForget(Command):
 
 class CmdInit(Command):
     accepts_flags = ()
+
+class CmdHelp(Command):
+
+    def run(self, profile, options):
+        """Print versions and help."""
+        if len(sys.argv) < 3:
+            print('restaround', VERSION)
+            call(['restic', 'version'])
+            print()
+            options.parser.print_help()
+        else:
+            Main.commands[sys.argv[2]].help()
+        return 0
+
 
 class CmdList(Command):
     accepts_flags = (Objects, )
@@ -885,31 +904,27 @@ class Main:
         except NameError:
             pass
         options = parser.parse_args(argv[1:])
+        options.parser = parser
         if options.dry:
             if options.loglevel != 'debug':
                 options.loglevel = 'info'
         logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
         logging.getLogger().setLevel(options.loglevel.upper())
-        Main.command = options.subparser_name
         options.profile = options.profile[0]
         os.environ['RESTAROUND_PID'] = str(os.getpid())
         os.environ['RESTAROUND_PROFILE'] = options.profile
         os.environ['RESTAROUND_DRY_RUN'] = '1' if options.dry else '0'
         os.environ['RESTAROUND_LOGLEVEL'] = options.loglevel
         if options.profile == 'help':
-            if options.subparser_name is None:
-                print('restaround', VERSION)
-                call(['restic', 'version'])
-                print()
-                parser.print_help()
-            else:
-                Command.subparsers._name_parser_map[  # pylint: disable=protected-access
-                    Main.commands[Main.command].restic_name()].print_help()
-            self.returncode = 0
-        elif options.profile == 'selftest':
-            self.returncode = Main.commands['selftest'].__class__().run(None, options)
+            self.returncode = Main.commands['help'].__class__().run(options.profile, options)
+            Main.command = 'help'
         else:
-            profile = Profile(options)
+            if options.profile == 'selftest':
+                Main.command = 'selftest'
+                profile = None
+            else:
+                Main.command = options.subparser_name
+                profile = Profile(options)
             os.environ['RESTAROUND_COMMAND'] = Main.command
             self.returncode = Main.commands[Main.command].__class__().run(profile, options)
         if self.returncode and self.returncode % 256 == 0:
