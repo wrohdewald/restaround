@@ -421,7 +421,7 @@ class Profile:
     @staticmethod
     def command_accepts():
         """Returns accepted flag classes."""
-        return Command.accepts_flags + Main.commands[Main.command].accepts_flags
+        return Command.specific_flags + Main.commands[Main.command].specific_flags
 
     def use_options(self):
         """Use options to set up profile flags."""
@@ -439,7 +439,7 @@ class Profile:
                     flag.apply_to(self)
 
     def sorted_flags(self):
-        """Sort applicable flags to the order of accepts_flags."""
+        """Sort applicable flags to the order of specific_flags."""
         result = []
         for cls in self.command_accepts():
             result.extend(self.find_flags(cls))
@@ -519,7 +519,7 @@ class Profile:
 class Command(object):  # pylint: disable=useless-object-inheritance
     class_type = 'Command'
     # Inherit must be first !
-    accepts_flags = (
+    specific_flags = (
         Cacert, Cache_Dir, Cleanup_Cache,
         Inherit, Json, Key_Hint, Limit_Download, Limit_Upload,
         No_Cache, No_Lock,
@@ -543,8 +543,8 @@ class Command(object):  # pylint: disable=useless-object-inheritance
         self.add_flags()
 
     def add_flags(self):
-        to_be_added = list(Command.accepts_flags)
-        for _ in self.accepts_flags:
+        to_be_added = list(Command.specific_flags)
+        for _ in self.specific_flags:
             if _ not in to_be_added:
                 to_be_added.append(_)
         for _ in to_be_added:
@@ -628,7 +628,7 @@ class Command(object):  # pylint: disable=useless-object-inheritance
 
 
 class CmdBackup(Command):
-    accepts_flags = (
+    specific_flags = (
         Exclude, Exclude_File, Exclude_Caches,
         Exclude_If_Present, Files_From,
         Force, Host, IExclude, Ignore_Inode,
@@ -638,7 +638,7 @@ class CmdBackup(Command):
 
 class CmdCpal(Command):
 
-    accepts_flags = ()
+    specific_flags = ()
     runs_on_windows = False
 
     description = """Make a copy of the repository. All files will be hard linked.
@@ -690,7 +690,7 @@ class CmdCpal(Command):
 
 class CmdRmcpal(CmdCpal):
 
-    accepts_flags = ()
+    specific_flags = ()
 
     description = """remove the copy made with cpal. See also cpal."""
 
@@ -706,29 +706,29 @@ class CmdRmcpal(CmdCpal):
 
 
 class CmdCat(Command):
-    accepts_flags = (Objects, )
+    specific_flags = (Objects, )
 
 
 class CmdCheck(Command):
-    accepts_flags = (Check_Unused, Read_Data, Read_Data_Subset, With_Cache)
+    specific_flags = (Check_Unused, Read_Data, Read_Data_Subset, With_Cache)
 
 
 class CmdDiff(Command):
-    accepts_flags = (Metadata, SnapshotID)
+    specific_flags = (Metadata, SnapshotID)
 
 
 class CmdDump(Command):
-    accepts_flags = (Host, Path, Tag)
+    specific_flags = (Host, Path, Tag)
 
 
 class CmdFind(Command):
-    accepts_flags = (
+    specific_flags = (
         Blob, Ignore_Case, Long, Newest, Oldest, Host,
         Pack, Path, Show_Pack_Id, Snapshot, Tag, Tree, Pattern)
 
 
 class CmdForget(Command):
-    accepts_flags = (
+    specific_flags = (
         Compact, Dry_Run, Group_By, Host,
         Keep_Last, Keep_Tag, Keep_Within,
         Keep_Hourly, Keep_Daily, Keep_Weekly, Keep_Monthly, Keep_Yearly,
@@ -736,7 +736,7 @@ class CmdForget(Command):
 
 
 class CmdInit(Command):
-    accepts_flags = ()
+    specific_flags = ()
 
 class CmdHelp(Command):
 
@@ -753,50 +753,50 @@ class CmdHelp(Command):
 
 
 class CmdList(Command):
-    accepts_flags = (Objects, )
+    specific_flags = (Objects, )
 
 
 class CmdLs(Command):
-    accepts_flags = (Host, Long, Path, Recursive, Tag, SingleSnapshotID, Dir)
+    specific_flags = (Host, Long, Path, Recursive, Tag, SingleSnapshotID, Dir)
 
 
 class CmdMount(Command):
-    accepts_flags = (
+    specific_flags = (
         Allow_Other, Allow_Root, Host,
         No_Default_Permissions,
         Owner_Root, Path, Snapshot_Template,
         Tag, Mountpoint)
 
 class CmdPrune(Command):
-    accepts_flags = ()
+    specific_flags = ()
 
 class CmdRebuild_Index(Command):
-    accepts_flags = ()
+    specific_flags = ()
 
 class CmdRecover(Command):
-    accepts_flags = ()
+    specific_flags = ()
 
 
 class CmdRestore(Command):
-    accepts_flags = (
+    specific_flags = (
         Exclude, Host, IExclude, IInclude,
         Include, Path, Tag, Target, Verify, SnapshotID)
 
 
 class CmdSnapshots(Command):
-    accepts_flags = (Compact, Group_By, Host, Last, Path, Tag, SnapshotID)
+    specific_flags = (Compact, Group_By, Host, Last, Path, Tag, SnapshotID)
 
 
 class CmdStats(Command):
-    accepts_flags = (Host, Mode, SnapshotID)
+    specific_flags = (Host, Mode, SnapshotID)
 
 
 class CmdTag(Command):
-    accepts_flags = (Add, Host, Path, Remove, Set, Tag, SnapshotID)
+    specific_flags = (Add, Host, Path, Remove, Set, Tag, SnapshotID)
 
 
 class CmdUnlock(Command):
-    accepts_flags = (Remove_All, )
+    specific_flags = (Remove_All, )
 
 class CmdSelftest(Command):
 
@@ -823,8 +823,8 @@ class CmdSelftest(Command):
                 logging.warning('restic %s is not supported', command)
                 returncode += 1
                 continue
-            restic_flags = set(Command.accepts_flags)
-            restic_flags |= set(Main.commands[command].accepts_flags)
+            restic_flags = set(Command.specific_flags)
+            restic_flags |= set(Main.commands[command].specific_flags)
             restic_flags = set(x.restic_name() for x in restic_flags)
             flags_in_help = self.parse_command_help(command)
             for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
