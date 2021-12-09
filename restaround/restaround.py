@@ -118,8 +118,9 @@ class Flag(object):  # pylint: disable=useless-object-inheritance
             self.values.extend(values)
         else:
             if len(self.values) + len(values) > 1:
-                logging.warning(
-                    'ignoring line: must define only one value: %s + %s', self.values, values)
+                _ = '--%s: only one value allowed: %s' % (self.restic_name(), self.values + values)
+                logging.error(_)
+                sys.exit(2)
             else:
                 self.values = values
 
@@ -398,7 +399,8 @@ class Inherit(ListFlag):
             profile.inherit(_)
 
     def remove_from(self, profile):
-        logging.error('no_%s is not implemented, ignoring', self.restic_name())
+        logging.error('no_%s is not implemented', self.restic_name())
+        sys.exit(2)
 
 
 class Cacert(FileFlag):
@@ -435,7 +437,7 @@ class ProfileEntry:
         self.values = fparts[1:]
         if self.values and path.stat().st_size:
             logging.error("ignoring %s: must be empty", path)
-            self.path = None  # marker for illegal entry
+            sys.exit(2)
 
     def flag(self):
         if self.command is not None and self.command != Main.command:
@@ -706,7 +708,7 @@ class CmdCpal(Command):
         repo_flag = profile.find_flag(Repo)
         if repo_flag is None:
             logging.error('%s needs --repo', Main.command)
-            return 2
+            sys.exit(2)
         return repo_flag.values[0]
 
     def copydir(self, profile):
@@ -728,7 +730,7 @@ class CmdCpal(Command):
             logging.error(
                 '%s: %s is a mount point, this is not supported',
                 Main.command, repo)
-            return 2
+            sys.exit(2)
         return 0
 
     def run_command(self, profile):
@@ -736,7 +738,7 @@ class CmdCpal(Command):
         copydir = self.copydir(profile)
         if copydir.exists():
             logging.error('cpal: %s already exists', copydir)
-            return 2
+            sys.exit(2)
         return Command.run_command(self, profile)
 
 
@@ -753,7 +755,7 @@ class CmdRmcpal(CmdCpal):
         copydir = self.copydir(profile)
         if not copydir.exists():
             logging.error('rmcpal: %s does not exist', copydir)
-            return 2
+            sys.exit(2)
         return Command.run_command(self, profile)
 
 
