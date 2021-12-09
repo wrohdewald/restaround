@@ -421,7 +421,7 @@ class Profile:
     @staticmethod
     def command_accepts():
         """Returns accepted flag classes."""
-        return Command.specific_flags + Main.commands[Main.command].specific_flags
+        return Command.general_flags + Main.commands[Main.command].specific_flags
 
     def use_options(self):
         """Use options to set up profile flags."""
@@ -519,13 +519,15 @@ class Profile:
 class Command(object):  # pylint: disable=useless-object-inheritance
     class_type = 'Command'
     # Inherit must be first !
-    specific_flags = (
+    general_flags = (
         Cacert, Cache_Dir, Cleanup_Cache,
         Inherit, Json, Key_Hint, Limit_Download, Limit_Upload,
         No_Cache, No_Lock,
         Password_Command, Password_File,
         Pre, Post,
         Quiet, Repo, Tls_Client_Cert, Verbose)
+    use_general_flags = True
+    specific_flags = ()
 
     subparsers = None
 
@@ -543,7 +545,7 @@ class Command(object):  # pylint: disable=useless-object-inheritance
         self.add_flags()
 
     def add_flags(self):
-        to_be_added = list(Command.specific_flags)
+        to_be_added = list(Command.general_flags)
         for _ in self.specific_flags:
             if _ not in to_be_added:
                 to_be_added.append(_)
@@ -638,7 +640,7 @@ class CmdBackup(Command):
 
 class CmdCpal(Command):
 
-    specific_flags = ()
+    use_general_flags = False
     runs_on_windows = False
 
     description = """Make a copy of the repository. All files will be hard linked.
@@ -690,7 +692,7 @@ class CmdCpal(Command):
 
 class CmdRmcpal(CmdCpal):
 
-    specific_flags = ()
+    use_general_flags = False
 
     description = """remove the copy made with cpal. See also cpal."""
 
@@ -710,6 +712,7 @@ class CmdCat(Command):
 
 
 class CmdCheck(Command):
+    use_general_flags = False
     specific_flags = (Check_Unused, Read_Data, Read_Data_Subset, With_Cache)
 
 
@@ -736,9 +739,11 @@ class CmdForget(Command):
 
 
 class CmdInit(Command):
-    specific_flags = ()
+    pass
 
 class CmdHelp(Command):
+    use_general_flags = False
+    specific_flags = ()
 
     def run(self, profile, options):
         """Print versions and help."""
@@ -767,14 +772,17 @@ class CmdMount(Command):
         Owner_Root, Path, Snapshot_Template,
         Tag, Mountpoint)
 
+
 class CmdPrune(Command):
-    specific_flags = ()
+    pass
+
 
 class CmdRebuild_Index(Command):
-    specific_flags = ()
+    pass
+
 
 class CmdRecover(Command):
-    specific_flags = ()
+    pass
 
 
 class CmdRestore(Command):
@@ -799,6 +807,7 @@ class CmdUnlock(Command):
     specific_flags = (Remove_All, )
 
 class CmdSelftest(Command):
+    use_general_flags = False
 
     description = """
         This executes several tests. It also checks if all commands and possible arguments of the
@@ -823,7 +832,7 @@ class CmdSelftest(Command):
                 logging.warning('restic %s is not supported', command)
                 returncode += 1
                 continue
-            restic_flags = set(Command.specific_flags)
+            restic_flags = set(Command.general_flags)
             restic_flags |= set(Main.commands[command].specific_flags)
             restic_flags = set(x.restic_name() for x in restic_flags)
             flags_in_help = self.parse_command_help(command)
