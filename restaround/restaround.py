@@ -254,35 +254,17 @@ class ScriptFlag(FileFlag):
         return []
 
 
-class Add(ListFlag): pass
-class Exclude_If_Present(ListFlag): pass
-class Exclude(ListFlag): pass
-class Files_From(ListFlag): resolve_content = False
-class Files_From_Raw(ListFlag): resolve_content = False
-class Files_From_Verbatim(ListFlag): resolve_content = False
-class Group_By(Flag): pass
-class Host(ListFlag): pass
-class IExclude(ListFlag): pass
-class IInclude(ListFlag): pass
-class Include(ListFlag): pass
+# Flag in alphabetical order
 
-class Inherit(ListFlag):
-
-    def apply_to(self, profile):
-        for _ in self.values:
-            profile.inherit(_)
-
-    def remove_from(self, profile):
-        logging.error('no_%s is not implemented, ignoring', self.restic_name())
-
+class Archive(Flag): pass
 class Exclude_Larger_Than(Flag): pass
+class Group_By(Flag): pass
 class Key_Hint(Flag): pass
 class Keep_Daily(Flag): pass
 class Keep_Hourly(Flag): pass
 class Keep_Last(Flag): pass
 class Keep_Monthly(Flag): pass
 class Keep_Yearly(Flag): pass
-class Keep_Tag(ListFlag): pass
 class Keep_Weekly(Flag): pass
 class Keep_Within(Flag): pass
 class Keep_Within_Daily(Flag): pass
@@ -292,6 +274,7 @@ class Keep_Within_Monthly(Flag): pass
 class Keep_Within_Weekly(Flag): pass
 class Keep_Within_Within(Flag): pass
 class Keep_Within_Yearly(Flag): pass
+class Key_Hint2(Flag): pass
 class Limit_Download(Flag): pass
 class Limit_Upload(Flag): pass
 class Max_Age(Flag): pass
@@ -301,31 +284,20 @@ class Mode(Flag): pass
 class Newest(Flag): pass
 class Oldest(Flag): pass
 class Parent(Flag): pass
-class Password_Command(FileFlag): pass
-class Password_Command2(FileFlag): pass
 class Path(Flag): multi = True
-class Post(ScriptFlag): pass
-class Pre(ScriptFlag): pass
 class Read_Data_Subset(Flag): pass
 class Remove(Flag): pass
-class Repo(FileFlag): resolve_content = True
-class Repo2(FileFlag): resolve_content = True
-class Archive(Flag): pass
-
 class Set(Flag): pass
 class Snapshot(Flag): pass
 class Snapshot_Template(Flag): pass
 class Stdin_Filename(Flag): pass
-class Tag(ListFlag): pass
 class Target(Flag): pass
-class Time(Flag): pass
-class Tls_Client_Cert(FileFlag):
-    multi = False
-
+class Time(Flag): multi = False
 class User(Flag): pass
-
-
 class Verbose(Flag): pass
+
+
+# BinaryFlag
 
 class Allow_Other(BinaryFlag): pass
 class Blob(BinaryFlag): pass
@@ -338,6 +310,7 @@ class Dry_Run(BinaryFlag): pass
 class Exclude_Caches(BinaryFlag): pass
 class Force(BinaryFlag): pass
 class Ignore_Case(BinaryFlag): pass
+class Ignore_Ctime(BinaryFlag): pass
 class Ignore_Inode(BinaryFlag): pass
 class Json(BinaryFlag): pass
 class Latest(BinaryFlag): pass
@@ -353,44 +326,89 @@ class Pack(BinaryFlag): pass
 class Prune(BinaryFlag): pass
 class Quiet(BinaryFlag): pass
 class Recursive(BinaryFlag): pass
-class Read_Data(BinaryFlag): pass
 class Read_All_Packs(BinaryFlag): pass
+class Read_Data(BinaryFlag): pass
 class Remove_All(BinaryFlag): pass
+class Repack_Cacheable_Only(BinaryFlag): pass
 class Show_Pack_Id(BinaryFlag): pass
 class Stdin(BinaryFlag): pass
 class Tree(BinaryFlag): pass
 class Verify(BinaryFlag): pass
 class With_Atime(BinaryFlag): pass
-class Ignore_Ctime(BinaryFlag): pass
 class With_Cache(BinaryFlag): pass
-class Repack_Cacheable_Only(BinaryFlag): pass
-class Key_Hint2(Flag): pass
+
+
+# ListFlag:
+
+class Add(ListFlag): pass
+class Exclude_If_Present(ListFlag): pass
+class Exclude(ListFlag): pass
+class Files_From(ListFlag): resolve_content = False
+class Files_From_Raw(ListFlag): resolve_content = False
+class Files_From_Verbatim(ListFlag): resolve_content = False
+class Host(ListFlag): pass
+class IExclude(ListFlag): pass
+class IInclude(ListFlag): pass
+class Include(ListFlag): pass
+class Keep_Tag(ListFlag): pass
+class Tag(ListFlag): pass
+
+
+# FileFlag:
+
+class Exclude_File(FileFlag): multi = True
+class IExclude_File(FileFlag): multi = True
+class Password_Command(FileFlag): pass
+class Password_Command2(FileFlag): pass
+class Password_File(FileFlag): pass
+class Password_File2(FileFlag): pass
+class New_Password_File(FileFlag): pass
+class Repo(FileFlag): resolve_content = True
+class Repo2(FileFlag): resolve_content = True
+class Repository_File(FileFlag): pass
+class Repository_File2(FileFlag): pass
+class Tls_Client_Cert(FileFlag): multi = False
+
+
+# ScriptFlag:
+
+class Post(ScriptFlag): pass
+class Pre(ScriptFlag): pass
+
+
+# PositionalFlag:
+
+class FileDir(PositionalFlag): pass
+class Dir(PositionalFlag): pass
+class KeyCommand(SinglePositionalFlag): pass
+class KeyID(SinglePositionalFlag): pass
+class Mountpoint(PositionalFlag): pass
+class Objects(PositionalFlag): pass
+class Pattern(PositionalFlag): pass
+class SnapshotID(PositionalFlag): pass
+class SingleSnapshotID(SinglePositionalFlag): pass
+
+
+# Flag classes with more own code:
+
+class Inherit(ListFlag):
+
+    def apply_to(self, profile):
+        for _ in self.values:
+            profile.inherit(_)
+
+    def remove_from(self, profile):
+        logging.error('no_%s is not implemented, ignoring', self.restic_name())
+
 
 class Cacert(FileFlag):
     multi = False
     resolve_content = True
 
+
 class Cache_Dir(FileFlag):
     multi = False
     resolve_content = True
-
-class Exclude_File(FileFlag): multi = True
-class IExclude_File(FileFlag): multi = True
-class Repository_File(FileFlag): pass
-class Repository_File2(FileFlag): pass
-class Password_File(FileFlag): pass
-class Password_File2(FileFlag): pass
-class New_Password_File(FileFlag): pass
-
-class Mountpoint(PositionalFlag): pass
-class FileDir(PositionalFlag): pass
-class Dir(PositionalFlag): pass
-class SnapshotID(PositionalFlag): pass
-class SingleSnapshotID(SinglePositionalFlag): pass
-class Objects(PositionalFlag): pass
-class Pattern(PositionalFlag): pass
-class KeyCommand(SinglePositionalFlag): pass
-class KeyID(SinglePositionalFlag): pass
 
 
 class ProfileEntry:
