@@ -421,7 +421,7 @@ class Profile:
     @staticmethod
     def command_accepts():
         """Returns accepted flag classes."""
-        return Command.general_flags + Main.commands[Main.command].specific_flags
+        return Main.commands[Main.command].accepts_flags()
 
     def use_options(self):
         """Use options to set up profile flags."""
@@ -542,15 +542,14 @@ class Command(object):  # pylint: disable=useless-object-inheritance
         if self.cmd_parser is None:
             self.cmd_parser = Command.subparsers.add_parser(
                 name=self.restic_name(), description=self.description)
-        self.add_flags()
-
-    def add_flags(self):
-        to_be_added = list(Command.general_flags)
-        for _ in self.specific_flags:
-            if _ not in to_be_added:
-                to_be_added.append(_)
-        for _ in to_be_added:
+        for _ in self.accepts_flags():
             Main.flags[_.restic_name()].add_as_argument_for(self)
+
+    @classmethod
+    def accepts_flags(cls):
+        if cls.use_general_flags:
+            return Command.general_flags + cls.specific_flags
+        return cls.specific_flags
 
     @staticmethod
     def run_script(script, env):
@@ -641,6 +640,7 @@ class CmdBackup(Command):
 class CmdCpal(Command):
 
     use_general_flags = False
+    specific_flags = (Repo, )
     runs_on_windows = False
 
     description = """Make a copy of the repository. All files will be hard linked.
@@ -832,9 +832,7 @@ class CmdSelftest(Command):
                 logging.warning('restic %s is not supported', command)
                 returncode += 1
                 continue
-            restic_flags = set(Command.general_flags)
-            restic_flags |= set(Main.commands[command].specific_flags)
-            restic_flags = set(x.restic_name() for x in restic_flags)
+            restic_flags = set(x.restic_name() for x in Main.commands[command].accepts_flags())
             flags_in_help = self.parse_command_help(command)
             for unimplemented in flags_in_help - restic_flags - will_not_implement_flags:
                 logging.warning('restic %s --%s is not implemented', command, unimplemented)
