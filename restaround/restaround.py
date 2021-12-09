@@ -258,6 +258,8 @@ class Add(ListFlag): pass
 class Exclude_If_Present(ListFlag): pass
 class Exclude(ListFlag): pass
 class Files_From(ListFlag): resolve_content = False
+class Files_From_Raw(ListFlag): resolve_content = False
+class Files_From_Verbatim(ListFlag): resolve_content = False
 class Group_By(Flag): pass
 class Host(ListFlag): pass
 class IExclude(ListFlag): pass
@@ -273,29 +275,42 @@ class Inherit(ListFlag):
     def remove_from(self, profile):
         logging.error('no_%s is not implemented, ignoring', self.restic_name())
 
+class Exclude_Larger_Than(Flag): pass
 class Key_Hint(Flag): pass
 class Keep_Daily(Flag): pass
 class Keep_Hourly(Flag): pass
 class Keep_Last(Flag): pass
 class Keep_Monthly(Flag): pass
+class Keep_Yearly(Flag): pass
 class Keep_Tag(ListFlag): pass
 class Keep_Weekly(Flag): pass
 class Keep_Within(Flag): pass
-class Keep_Yearly(Flag): pass
+class Keep_Within_Daily(Flag): pass
+class Keep_Within_Hourly(Flag): pass
+class Keep_Within_Last(Flag): pass
+class Keep_Within_Monthly(Flag): pass
+class Keep_Within_Weekly(Flag): pass
+class Keep_Within_Within(Flag): pass
+class Keep_Within_Yearly(Flag): pass
 class Limit_Download(Flag): pass
 class Limit_Upload(Flag): pass
 class Max_Age(Flag): pass
+class Max_Unused(Flag): pass
+class Max_Repack_Size(Flag): pass
 class Mode(Flag): pass
 class Newest(Flag): pass
 class Oldest(Flag): pass
 class Parent(Flag): pass
 class Password_Command(FileFlag): pass
+class Password_Command2(FileFlag): pass
 class Path(Flag): multi = True
 class Post(ScriptFlag): pass
 class Pre(ScriptFlag): pass
 class Read_Data_Subset(Flag): pass
 class Remove(Flag): pass
 class Repo(FileFlag): resolve_content = True
+class Repo2(FileFlag): resolve_content = True
+class Archive(Flag): pass
 
 class Set(Flag): pass
 class Snapshot(Flag): pass
@@ -307,14 +322,17 @@ class Time(Flag): pass
 class Tls_Client_Cert(FileFlag):
     multi = False
 
+class User(Flag): pass
+
+
 class Verbose(Flag): pass
 
 class Allow_Other(BinaryFlag): pass
-class Allow_Root(BinaryFlag): pass
 class Blob(BinaryFlag): pass
 class Check_Unused(BinaryFlag): pass
 class Cleanup(BinaryFlag): pass
 class Cleanup_Cache(BinaryFlag): pass
+class Copy_Chunker_Params(BinaryFlag): pass
 class Compact(BinaryFlag): pass
 class Dry_Run(BinaryFlag): pass
 class Exclude_Caches(BinaryFlag): pass
@@ -322,7 +340,7 @@ class Force(BinaryFlag): pass
 class Ignore_Case(BinaryFlag): pass
 class Ignore_Inode(BinaryFlag): pass
 class Json(BinaryFlag): pass
-class Last(BinaryFlag): pass
+class Latest(BinaryFlag): pass
 class Long(BinaryFlag): pass
 class Metadata(BinaryFlag): pass
 class No_Cache(BinaryFlag): pass
@@ -336,13 +354,17 @@ class Prune(BinaryFlag): pass
 class Quiet(BinaryFlag): pass
 class Recursive(BinaryFlag): pass
 class Read_Data(BinaryFlag): pass
+class Read_All_Packs(BinaryFlag): pass
 class Remove_All(BinaryFlag): pass
 class Show_Pack_Id(BinaryFlag): pass
 class Stdin(BinaryFlag): pass
 class Tree(BinaryFlag): pass
 class Verify(BinaryFlag): pass
 class With_Atime(BinaryFlag): pass
+class Ignore_Ctime(BinaryFlag): pass
 class With_Cache(BinaryFlag): pass
+class Repack_Cacheable_Only(BinaryFlag): pass
+class Key_Hint2(Flag): pass
 
 class Cacert(FileFlag):
     multi = False
@@ -353,7 +375,12 @@ class Cache_Dir(FileFlag):
     resolve_content = True
 
 class Exclude_File(FileFlag): multi = True
+class IExclude_File(FileFlag): multi = True
+class Repository_File(FileFlag): pass
+class Repository_File2(FileFlag): pass
 class Password_File(FileFlag): pass
+class Password_File2(FileFlag): pass
+class New_Password_File(FileFlag): pass
 
 class Mountpoint(PositionalFlag): pass
 class FileDir(PositionalFlag): pass
@@ -362,6 +389,8 @@ class SnapshotID(PositionalFlag): pass
 class SingleSnapshotID(SinglePositionalFlag): pass
 class Objects(PositionalFlag): pass
 class Pattern(PositionalFlag): pass
+class KeyCommand(SinglePositionalFlag): pass
+class KeyID(SinglePositionalFlag): pass
 
 
 class ProfileEntry:
@@ -525,6 +554,7 @@ class Command(object):  # pylint: disable=useless-object-inheritance
         No_Cache, No_Lock,
         Password_Command, Password_File,
         Pre, Post,
+        Repository_File,
         Quiet, Repo, Tls_Client_Cert, Verbose)
     use_general_flags = True
     specific_flags = ()
@@ -632,6 +662,8 @@ class CmdBackup(Command):
     specific_flags = (
         Exclude, Exclude_File, Exclude_Caches,
         Exclude_If_Present, Files_From,
+        Exclude_Larger_Than, IExclude_File,
+        Files_From_Raw, Files_From_Verbatim, Ignore_Ctime,
         Force, Host, IExclude, Ignore_Inode,
         One_File_System, Parent, Stdin,
         Stdin_Filename, Tag, Time, With_Atime, FileDir)
@@ -712,8 +744,8 @@ class CmdCat(Command):
 
 
 class CmdCheck(Command):
-    use_general_flags = False
     specific_flags = (Check_Unused, Read_Data, Read_Data_Subset, With_Cache)
+#        Cacert, Key_Hint)
 
 
 class CmdDiff(Command):
@@ -721,7 +753,7 @@ class CmdDiff(Command):
 
 
 class CmdDump(Command):
-    specific_flags = (Host, Path, Tag)
+    specific_flags = (Archive, Host, Path, Tag)
 
 
 class CmdFind(Command):
@@ -732,14 +764,16 @@ class CmdFind(Command):
 
 class CmdForget(Command):
     specific_flags = (
-        Compact, Dry_Run, Group_By, Host,
-        Keep_Last, Keep_Tag, Keep_Within,
-        Keep_Hourly, Keep_Daily, Keep_Weekly, Keep_Monthly, Keep_Yearly,
-        Path, Prune, Tag, SnapshotID)
+        Keep_Last, Keep_Hourly, Keep_Daily, Keep_Weekly, Keep_Monthly, Keep_Yearly,
+        Keep_Within, Keep_Within_Hourly, Keep_Within_Daily, Keep_Within_Weekly, Keep_Within_Monthly, Keep_Within_Yearly,
+        Keep_Tag, Host, Tag, Path, Compact, Group_By, Dry_Run,
+        Prune, Max_Unused, Max_Repack_Size, Repack_Cacheable_Only, SnapshotID)
 
 
 class CmdInit(Command):
-    pass
+    specific_flags = (
+        Copy_Chunker_Params, Key_Hint2, Password_Command2, Password_File2, Repo2, Repository_File2)
+
 
 class CmdHelp(Command):
     use_general_flags = False
@@ -767,18 +801,19 @@ class CmdLs(Command):
 
 class CmdMount(Command):
     specific_flags = (
-        Allow_Other, Allow_Root, Host,
+        Allow_Other, Host,
         No_Default_Permissions,
         Owner_Root, Path, Snapshot_Template,
         Tag, Mountpoint)
 
 
 class CmdPrune(Command):
-    pass
+    specific_flags = (
+        Dry_Run, Max_Repack_Size, Max_Unused, Repack_Cacheable_Only)
 
 
 class CmdRebuild_Index(Command):
-    pass
+    specific_flags = (Read_All_Packs, )
 
 
 class CmdRecover(Command):
@@ -792,11 +827,11 @@ class CmdRestore(Command):
 
 
 class CmdSnapshots(Command):
-    specific_flags = (Compact, Group_By, Host, Last, Path, Tag, SnapshotID)
+    specific_flags = (Compact, Group_By, Host, Latest, Path, Tag, SnapshotID)
 
 
 class CmdStats(Command):
-    specific_flags = (Host, Mode, SnapshotID)
+    specific_flags = (Host, Mode, Path, Tag, SnapshotID)
 
 
 class CmdTag(Command):
@@ -805,6 +840,19 @@ class CmdTag(Command):
 
 class CmdUnlock(Command):
     specific_flags = (Remove_All, )
+
+
+class CmdMigrate(Command):
+    specific_flags = (Force, )
+
+
+class CmdCopy(Command):
+    specific_flags = (Host, Key_Hint2, Password_Command2, Password_File2, Path, Repo2, Repository_File2, Tag, )
+
+
+class CmdKey(Command):
+    specific_flags = (Host, New_Password_File, User, KeyCommand, KeyID)
+
 
 class CmdSelftest(Command):
     use_general_flags = False
@@ -1374,10 +1422,9 @@ class Test_restaround:
         self.run_test(profile, ['forget', 'latest'], [(
             'RUN restic forget ' \
             '--password-file={0} --repo={1} ' \
-            '--compact --group-by=paths ' \
-            '--host=mysystem --keep-last=5 --keep-tag=a --keep-tag=b --keep-within=1y5m7d2h ' \
-            '--keep-hourly=6 --keep-monthly=7 --keep-yearly=8 ' \
-            '--prune --tag=a --tag=b --tag=c latest'.format(
+            '--keep-last=5 ' \
+            '--keep-hourly=6 --keep-monthly=7 --keep-yearly=8 --keep-within=1y5m7d2h ' \
+            '--keep-tag=a --keep-tag=b --host=mysystem --tag=a --tag=b --tag=c --compact --group-by=paths --prune latest'.format(
                 parent_profile / 'password-file', self.repo1), 0, {})])
 
     if HAS_PYTEST:
