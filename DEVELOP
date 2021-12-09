@@ -6,7 +6,7 @@ creating a new release
  3. cleanup commits
  4. pylint
  5. git stash list should be empty
- 6. bin/gittag 0.1.5
+ 6. ./gittag 0.1.5
  7. ./test_install
  8. clear https://test.pypi.org/project/restaround
  9. git push
