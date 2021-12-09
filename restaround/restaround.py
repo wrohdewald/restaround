@@ -838,7 +838,7 @@ class CmdSelftest(Command):
                 logging.warning('restic %s --%s is not implemented', command, unimplemented)
                 returncode += 1
             for too_much in restic_flags - flags_in_help - will_not_implement_flags:
-                logging.warning('flag %s is not supported by restic', too_much)
+                logging.warning('restaround %s --%s is not supported by restic', command, too_much)
                 returncode += 1
         return returncode
 
