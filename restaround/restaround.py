@@ -48,7 +48,7 @@ try:
 except ImportError:
     HAS_PYTEST = False
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 
 
 # PATHS defines directories for looking up profile definitions.
