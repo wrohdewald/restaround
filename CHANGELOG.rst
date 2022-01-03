@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.1.5 release 2022-x-x
+------------------------
+ * a file named README in the profile directory will be ignored
+
 0.1.4 release 2020-x-x
 ------------------------
 

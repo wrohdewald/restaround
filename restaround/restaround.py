@@ -532,6 +532,8 @@ class Profile:
             profile_dir = basedir / 'restaround' / profile_name
             if profile_dir.is_dir():
                 for filename in profile_dir.iterdir():
+                    if filename.name == 'README':
+                        continue
                     flag = ProfileEntry(profile_dir / filename).flag()
                     if flag is not None:
                         if flag.__class__ in self.command_accepts():

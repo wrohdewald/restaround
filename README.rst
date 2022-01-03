@@ -72,6 +72,8 @@ Definition
 A profile is implemented as a directory with files for flags. Those can be
 symbolic links, getting flag values from other profiles.
 
+You can place profile specific comments in a file ``README``.
+
 Most files in that directory have the same spelling as the restic_ flag.
 In restic_, however the positional flags sometimes have names which do not allow
 this like restic backup: ``FILE/DIR [FILE/DIR] ...``.
