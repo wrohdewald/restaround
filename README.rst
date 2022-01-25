@@ -26,9 +26,13 @@ Synopsis
 
 Usage: restaround [-h] [-n] [-s] profile command [restic arguments]
 
-  -h, --help      show this help message and exit
+  -h, --help          show this help message and exit
 
-  -n, --dry-run   Only show the restic command to be executed
+  -n, --dry-run       Only show the restic command to be executed
+
+  -o, --output FILE   Write output into FILE
+
+  -e, --stderr FILE   Write error output into FILE
 
 
 ========================== ==============================================================================================

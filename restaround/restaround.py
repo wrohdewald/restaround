@@ -9,9 +9,9 @@
 # See LICENSE for details.
 
 # PYTHON_ARGCOMPLETE_OK
-# for command line argument completion, put this into your .bashrc:
-# eval "$(register-python-argcomplete restaround)"
-# or see https://argcomplete.readthedocs.io/en/latest/
+# for command line argument completion, do
+# pip3 install argcomplete
+# activate-global-python-argcomplete
 
 """
 
@@ -653,17 +653,17 @@ class Command(object):  # pylint: disable=useless-object-inheritance
                 return returncode
             # now rescan, the script may have changed files
             profile = Profile(profile.options)
-        returncode = self.run_command(profile)
+        returncode = self.run_command(profile, options)
         env['RESTIC_EXITCODE'] = str(returncode)
         for post_script in profile.post_scripts():
             self.run_script(post_script, env)
         return returncode
 
-    def run_command(self, profile):
+    def run_command(self, profile, options):
         args = self.run_args(profile)
         cmdline = 'RUN %s' % ' '.join(str(x) for x in args)
         logging.info(cmdline)
-        returncode = call(args)
+        returncode = call(args, stdout=options.output, stderr=options.stderr)
         Main.run_history.append((cmdline, returncode, None))
         return returncode
 
@@ -735,13 +735,13 @@ class CmdCpal(Command):
             sys.exit(2)
         return 0
 
-    def run_command(self, profile):
+    def run_command(self, profile, options):
         self.check_same_fs(profile)
         copydir = self.copydir(profile)
         if copydir.exists():
             logging.error('cpal: %s already exists', copydir)
             sys.exit(2)
-        return Command.run_command(self, profile)
+        return Command.run_command(self, profile, options)
 
 
 class CmdRmcpal(CmdCpal):
@@ -753,12 +753,12 @@ class CmdRmcpal(CmdCpal):
     def run_args(self, profile):
         return ['rm', '-r', str(self.copydir(profile))]
 
-    def run_command(self, profile):
+    def run_command(self, profile, options):
         copydir = self.copydir(profile)
         if not copydir.exists():
             logging.error('rmcpal: %s does not exist', copydir)
             sys.exit(2)
-        return Command.run_command(self, profile)
+        return Command.run_command(self, profile, options)
 
 
 class CmdCat(Command):
@@ -805,7 +805,7 @@ class CmdHelp(Command):
         """Print versions and help."""
         if len(sys.argv) < 3:
             print('restaround', VERSION)
-            call(['restic', 'version'])
+            call(['restic', 'version'], stdout=options.output, stderr=options.stderr)
             print()
             options.parser.print_help()
         else:
@@ -985,7 +985,19 @@ class Main:
         if options.dry:
             if options.loglevel != 'debug':
                 options.loglevel = 'info'
-        logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
+        log_dict = dict()
+        log_dict['format'] = '%(asctime)s %(levelname)s %(message)s'
+        if options.output:
+            log_dict['filename'] = options.output
+            options.output = open(options.output, 'a')
+        else:
+            options.output = sys.stdout
+        if options.stderr:
+            log_dict['errors'] = options.stderr
+            options.stderr = open(options.stderr, 'a')
+        else:
+            options.stderr = sys.stderr
+        logging.basicConfig(**log_dict)
         logging.getLogger().setLevel(options.loglevel.upper())
         options.profile = options.profile[0]
         os.environ['RESTAROUND_PID'] = str(os.getpid())
@@ -1030,6 +1042,10 @@ class Main:
         parser.add_argument(
             '-l', '--loglevel', help='set the loglevel only for restaround, not for restic',
             choices=('error', 'warning', 'info', 'debug'), default='info')
+        parser.add_argument(
+            '-o', '--output', help='write standard output into file')
+        parser.add_argument(
+            '-e', '--stderr', help='write error output into file')
         parser.add_argument(
             'profile', nargs=1, choices=Profile.choices(), help="""
             Use PROFILE. A relative name is first looked for
