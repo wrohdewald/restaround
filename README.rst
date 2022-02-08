@@ -227,6 +227,16 @@ way known to me how to do that on a non linux system, they do that like this:
 
 ``echo "VARNAME=VALUE"``
 
+These environment variables set in a pre script will be used by restaround:
+
+=========================  ==============================================================
+Environment variable       meaning
+=========================  ==============================================================
+RESTAROUND_OUTPUT          Standard output goes into this file
+RESTAROUND_ERROR           Standard error goes into this file
+RESTAROUND_LOGLEVEL        will be used as new --loglevel
+=========================  ==============================================================
+
 Everything a script writes to stdout must look like that. You must suppress other
 output to stdout.
 

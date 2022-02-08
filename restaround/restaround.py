@@ -629,6 +629,21 @@ class Command(object):  # pylint: disable=useless-object-inheritance
                     if platform.system() == 'Windows' and value.startswith('"') and value.endswith('"'):
                         value = value[1:-1]
                     env[key] = value
+            new_output = env.get('RESTAROUND_OUTPUT')
+            if new_output:
+                Main.logger_dict['filename'] = new_output
+                Main.options.output = open(new_output, 'a')
+            new_errors = None
+            if sys.version_info[:2] >= (3, 8):
+                new_errors = env.get('RESTAROUND_ERRORS')
+                if new_errors:
+                    Main.logger_dict['errors'] = new_errors
+                    Main.options.errors = open(new_errors, 'a')
+            new_loglevel = env.get('RESTAROUND_LOGLEVEL')
+            if new_loglevel:
+                Main.logger_dict['level'] = new_loglevel
+            if new_output or new_errors or new_loglevel:
+                Main.startLogger()
         Main.run_history.append((cmdline, process_returncode, env))
         return env, process_returncode
 
@@ -970,8 +985,10 @@ class Main:
 
     commands = dict()
     flags = dict()
+    logger_dict = dict()
     command = None
     run_history = []  # tuple: RUN-Command, returncode, returned variables (by Pre)
+    options = None
 
     def __init__(self, argv):
         self.init_globals()
@@ -981,24 +998,25 @@ class Main:
         except NameError:
             pass
         options = parser.parse_args(argv[1:])
+        Main.options = options
         options.parser = parser
         if options.dry:
             if options.loglevel != 'debug':
                 options.loglevel = 'info'
-        log_dict = dict()
-        log_dict['format'] = '%(asctime)s %(levelname)s %(message)s'
+        Main.logger_dict['format'] = '%(asctime)s %(levelname)s %(message)s'
         if options.output:
-            log_dict['filename'] = options.output
+            Main.logger_dict['filename'] = options.output
             options.output = open(options.output, 'a')
         else:
             options.output = sys.stdout
         if options.stderr:
-            log_dict['errors'] = options.stderr
+            if sys.version_info[:2] >= (3, 8):
+                Main.logger_dict['errors'] = options.stderr
             options.stderr = open(options.stderr, 'a')
         else:
             options.stderr = sys.stderr
-        logging.basicConfig(**log_dict)
-        logging.getLogger().setLevel(options.loglevel.upper())
+        Main.logger_dict['level'] = options.loglevel
+        self.startLogger()
         options.profile = options.profile[0]
         os.environ['RESTAROUND_PID'] = str(os.getpid())
         os.environ['RESTAROUND_PROFILE'] = options.profile
@@ -1018,6 +1036,19 @@ class Main:
             self.returncode = Main.commands[Main.command].__class__().run(profile, options)
         if self.returncode and self.returncode % 256 == 0:
             self.returncode -= 1
+
+    @staticmethod
+    def startLogger():
+
+        # basicConfig(force=True) only comes with python3.8
+        for h in logging.root.handlers[:]:
+            logging.root.removeHandler(h)
+            h.close()
+
+        if 'level' in Main.logger_dict:
+            Main.logger_dict['level'] = Main.logger_dict['level'].upper()
+
+        logging.basicConfig(**Main.logger_dict)
 
     @staticmethod
     def init_globals():
