@@ -997,27 +997,9 @@ class Main:
             argcomplete.autocomplete(parser)
         except NameError:
             pass
-        options = parser.parse_args(argv[1:])
-        Main.options = options
-        options.parser = parser
-        if options.dry:
-            if options.loglevel != 'debug':
-                options.loglevel = 'info'
-        Main.logger_dict['format'] = '%(asctime)s %(levelname)s %(message)s'
-        if options.output:
-            Main.logger_dict['filename'] = options.output
-            options.output = open(options.output, 'a')
-        else:
-            options.output = sys.stdout
-        if options.stderr:
-            if sys.version_info[:2] >= (3, 8):
-                Main.logger_dict['errors'] = options.stderr
-            options.stderr = open(options.stderr, 'a')
-        else:
-            options.stderr = sys.stderr
+        options = self.prepare_options(parser, argv)
         Main.logger_dict['level'] = options.loglevel
         self.startLogger()
-        options.profile = options.profile[0]
         os.environ['RESTAROUND_PID'] = str(os.getpid())
         os.environ['RESTAROUND_PROFILE'] = options.profile
         os.environ['RESTAROUND_DRY_RUN'] = '1' if options.dry else '0'
@@ -1036,6 +1018,30 @@ class Main:
             self.returncode = Main.commands[Main.command].__class__().run(profile, options)
         if self.returncode and self.returncode % 256 == 0:
             self.returncode -= 1
+
+    @staticmethod
+    def prepare_options(parser, argv):
+        options = parser.parse_args(argv[1:])
+        Main.options = options
+        options.parser = parser
+        if options.dry:
+            if options.loglevel != 'debug':
+                options.loglevel = 'info'
+        Main.logger_dict['format'] = '%(asctime)s %(levelname)s %(message)s'
+        if options.output:
+            Main.logger_dict['filename'] = options.output
+            options.output = open(options.output, 'a')
+        else:
+            options.output = sys.stdout
+        if options.stderr:
+            if sys.version_info[:2] >= (3, 8):
+                Main.logger_dict['errors'] = options.stderr
+            options.stderr = open(options.stderr, 'a')
+        else:
+            options.stderr = sys.stderr
+        options.profile = options.profile[0]
+        return options
+
 
     @staticmethod
     def startLogger():
