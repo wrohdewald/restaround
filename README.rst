@@ -366,10 +366,5 @@ If you want to use ``restaround selftest``, please install pytest, see https://d
 For parallel test execution see the comment in the source: search for run_pytest.
 
 
-TODO
-====
-- maybe lockrepo and unlockrepo: https://forum.restic.net/t/is-it-possible-to-decrypt-restic-files-from-the-command-line/2363/7
-- maybe restaround --ionice, also as profile/ionice_c3
-
 .. _restic: https://restic.net
 
