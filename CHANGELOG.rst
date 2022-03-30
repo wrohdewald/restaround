@@ -5,6 +5,7 @@ Changelog
 ------------------------
  * a file named README in the profile directory will be ignored
  * new options --output and --stderr
+ * ignore .*.swp files in profile directory
 
 0.1.4 release 2020-x-x
 ------------------------

@@ -534,6 +534,8 @@ class Profile:
                 for filename in profile_dir.iterdir():
                     if filename.name == 'README':
                         continue
+                    if filename.name.startswith('.') and filename.name.endswith('.swp'):
+                        continue
                     flag = ProfileEntry(profile_dir / filename).flag()
                     if flag is not None:
                         if flag.__class__ in self.command_accepts():
