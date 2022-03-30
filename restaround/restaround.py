@@ -313,6 +313,7 @@ class Force(BinaryFlag): pass
 class Ignore_Case(BinaryFlag): pass
 class Ignore_Ctime(BinaryFlag): pass
 class Ignore_Inode(BinaryFlag): pass
+class Insecure_Tls(BinaryFlag): pass
 class Json(BinaryFlag): pass
 class Latest(BinaryFlag): pass
 class Long(BinaryFlag): pass
@@ -574,7 +575,7 @@ class Command(object):  # pylint: disable=useless-object-inheritance
     # Inherit must be first !
     general_flags = (
         Cacert, Cache_Dir, Cleanup_Cache,
-        Inherit, Json, Key_Hint, Limit_Download, Limit_Upload,
+        Inherit, Insecure_Tls, Json, Key_Hint, Limit_Download, Limit_Upload,
         No_Cache, No_Lock,
         Password_Command, Password_File,
         Pre, Post,
@@ -699,6 +700,7 @@ class Command(object):  # pylint: disable=useless-object-inheritance
 
 class CmdBackup(Command):
     specific_flags = (
+        Dry_Run,
         Exclude, Exclude_File, Exclude_Caches,
         Exclude_If_Present, Files_From,
         Exclude_Larger_Than, IExclude_File,
